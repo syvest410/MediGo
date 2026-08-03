@@ -1,0 +1,195 @@
+// Prisma Schema for UN 3373 Category B Biological Specimen Logistics
+// Compliance: ADR Packaging Instruction P650 & German Transfusionsgesetz / Medical Logistics Regulations
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  DISPATCHER
+  DRIVER
+  CLIENT_CLINIC
+  LAB_STAFF
+}
+
+enum TransportType {
+  AMBIENT_15_25C
+  REFRIGERATED_2_8C
+  FROZEN_MINUS_20C
+}
+
+enum OrderStatus {
+  SCHEDULED
+  PRE_TRIP_CHECK
+  PICKED_UP
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+enum CancelReasonCode {
+  RECIPIENT_UNAVAILABLE
+  SAMPLE_REJECTED_PACAKGING
+  VEHICLE_FAILURE
+  TEMPERATURE_BREACH
+  CLINIC_CANCELLED
+  OTHER
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  name          String
+  role          Role           @default(DRIVER)
+  phone         String?
+  organization  String?        // e.g., "Charité Berlin - Clinic A" or "MedLogistics GmbH"
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  assignedOrders Order[]       @relation("DriverOrders")
+  createdOrders  Order[]       @relation("CreatedOrders")
+  auditLogs      AuditLog[]
+  preTripChecks  PreTripCheck[]
+}
+
+model Order {
+  id                   String            @id @default(uuid())
+  trackingNumber       String            @unique // e.g. DE-UN3373-2026-9482
+  status               OrderStatus       @default(SCHEDULED)
+  transportType        TransportType     @default(REFRIGERATED_2_8C)
+  
+  // Addresses & Contacts
+  pickupClinicName     String
+  pickupAddress        String
+  pickupDepartment     String?           // e.g., "Station 4B - Pathology"
+  pickupContactPhone   String
+  
+  deliveryLabName      String
+  deliveryAddress      String
+  deliveryDepartment   String?           // e.g., "Central Virology Lab - Entrance C"
+  deliveryContactPhone String
+
+  // Time Window
+  scheduledPickupFrom  DateTime
+  scheduledPickupTo    DateTime
+  scheduledDeliveryBy  DateTime
+
+  // Specimen Metadata (UN 3373 Cat B)
+  sampleCategory       String            // e.g., "UN 3373 Diagnostic Specimen (Blood/Serum)"
+  specimenBoxCount     Int               @default(1)
+  barcodeList          String[]          // Array of scanned barcode strings e.g. ["SPEC-9901-A", "SPEC-9901-B"]
+  specialNotes         String?
+  p650Verified         Boolean           @default(false)
+
+  // Driver & Vehicle Assignment
+  driverId             String?
+  driver               User?             @relation("DriverOrders", fields: [driverId], references: [id])
+  createdById          String
+  createdBy            User              @relation("CreatedOrders", fields: [createdById], references: [id])
+  vehicleRegNumber     String?           // e.g., "B-ML 8832 (Thermo Van)"
+
+  // Cancellation
+  cancellationReason   CancelReasonCode?
+  cancellationNotes    String?
+
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  // Relations
+  preTripCheck         PreTripCheck?
+  chainOfCustodyLogs   ChainOfCustody[]
+  telemetryLogs        TemperatureTelemetry[]
+  auditLogs            AuditLog[]
+
+  @@index([status])
+  @@index([trackingNumber])
+}
+
+model PreTripCheck {
+  id                            String      @id @default(uuid())
+  orderId                       String      @unique
+  order                         Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  driverId                      String
+  driver                        User        @relation(fields: [driverId], references: [id])
+  vehicleRegNumber              String
+  
+  p650OuterPackagingIntact     Boolean     @default(true)
+  primarySecondaryLeakProof     Boolean     @default(true)
+  absorbentMaterialPresent      Boolean     @default(true)
+  tempBoxCalibrated             Boolean     @default(true)
+  initialTempCelsius            Float
+  targetTempMinCelsius          Float
+  targetTempMaxCelsius          Float
+  
+  inspectedAt                   DateTime    @default(now())
+  driverSignatureBase64         String
+  approved                      Boolean     @default(true)
+}
+
+model ChainOfCustody {
+  id                  String      @id @default(uuid())
+  orderId             String
+  order               Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  eventType           String      // "PICKUP_SIGNATURE" | "DELIVERY_SIGNATURE"
+  
+  staffName           String
+  staffTitle          String?     // e.g., "Head Nurse", "Lab Receptionist"
+  signatureBase64     String
+  pinCodeVerified     Boolean     @default(false)
+  scannedBarcodes     String[]
+  
+  timestamp           DateTime    @default(now())
+  gpsLatitude         Float
+  gpsLongitude        Float
+  gpsAccuracyMeters   Float       @default(5.0)
+  deviceId            String
+
+  @@index([orderId])
+}
+
+model TemperatureTelemetry {
+  id                  String      @id @default(uuid())
+  orderId             String
+  order               Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  sensorId            String      // e.g., "SENS-ICE-04"
+  
+  tempCelsius         Float
+  ambientTempCelsius  Float
+  humidityPercent     Float
+  batteryLevelPercent Int         @default(98)
+  isBreach            Boolean     @default(false)
+  
+  timestamp           DateTime    @default(now())
+  gpsLatitude         Float
+  gpsLongitude        Float
+
+  @@index([orderId, timestamp])
+}
+
+model AuditLog {
+  id                  String      @id @default(uuid())
+  orderId             String
+  order               Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  previousState       OrderStatus?
+  newState            OrderStatus
+  actionDescription   String
+  userId              String
+  user                User        @relation(fields: [userId], references: [id])
+  
+  deviceId            String
+  gpsLatitude         Float
+  gpsLongitude        Float
+  offlineSynced       Boolean     @default(false)
+  syncedAt            DateTime?
+  
+  createdAt           DateTime    @default(now())
+
+  @@index([orderId])
+}

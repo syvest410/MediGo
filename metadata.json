@@ -1,0 +1,6 @@
+{
+  "name": "MediGo - Hessen Medical Courier & Specimen Logistics",
+  "description": "Medical logistics and specimen tracking system tailored for Hesse (Hessen), Germany, matching MediGo red & white state colors, UN 3373 Category B compliance, real-time driver state machine, and clinic booking portal.",
+  "requestFramePermissions": ["camera", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
