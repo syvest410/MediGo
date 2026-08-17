@@ -23,10 +23,13 @@ import {
   ChevronRight,
   Sparkles,
   Sun,
-  Moon
+  Moon,
+  Globe,
+  Compass
 } from 'lucide-react';
 import { Role, User } from '../../types';
 import { INITIAL_USERS } from '../../lib/db';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface HomePageLandingProps {
   onLogin: (user: User, initialViewMode?: 'DRIVER_MOBILE' | 'DISPATCH_DASHBOARD' | 'CLIENT_PORTAL' | 'LEGAL_COMPLIANCE') => void;
@@ -41,6 +44,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
   isNightShift = false,
   onToggleNightShift
 }) => {
+  const { language, toggleLanguage, t } = useLanguage();
   const [selectedRole, setSelectedRole] = useState<Role>('CLIENT_CLINIC');
   const [emailInput, setEmailInput] = useState('probeneingang@kgu.de');
   const [passwordInput, setPasswordInput] = useState('••••••••••••');
@@ -63,9 +67,9 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
     onLogin(user, viewMode);
   };
 
-  const shareText = `🏥 MediGo Hessen Medical Logistics — Demo Credentials:
+  const shareText = `🏥 MediGo Medical Logistics (Hauptstandort Wiesbaden) — Sandbox Credentials:
 • CLINIC PORTAL: probeneingang@kgu.de (Contract: CTR-2026-UKF)
-• DRIVER APP: Hans Schmidt (PIN: 1044, Vehicle: F-MG 7741)
+• DRIVER APP: Hans Schmidt (PIN: 1044, Vehicle: WI-MG 7741)
 • CEO DISPATCH: dispatch@medigo-hessen.de`;
 
   const handleCopyShare = () => {
@@ -85,7 +89,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
       }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           
-          {/* Brand Logo */}
+          {/* Brand Logo & Wiesbaden Starting Location */}
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-red-600 rounded-xl overflow-hidden flex items-center justify-center border border-red-500 shadow-md shrink-0">
               <img 
@@ -103,19 +107,33 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                 <span className={`border text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
                   isNightShift ? 'bg-red-950 text-red-300 border-red-800' : 'bg-red-100 text-red-700 border-red-200'
                 }`}>
-                  Hessen
+                  {t('location.hq')}
                 </span>
               </div>
-              <p className={`text-[11px] ${isNightShift ? 'text-slate-400' : 'text-slate-600'}`}>UN 3373 Category B Medical Courier & Laboratory Express</p>
+              <p className={`text-[11px] ${isNightShift ? 'text-slate-400' : 'text-slate-600'}`}>{t('brand.sub')}</p>
             </div>
           </div>
 
           {/* Nav Actions */}
-          <div className="flex items-center space-x-3 text-xs">
+          <div className="flex items-center space-x-2.5 text-xs">
+            {/* Language Switcher */}
+            <button
+              onClick={toggleLanguage}
+              className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all shadow-sm ${
+                isNightShift
+                  ? 'bg-slate-800 hover:bg-slate-700 text-slate-100 border-slate-700'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-900 border-slate-300'
+              }`}
+              title="Switch Language (German / English)"
+            >
+              <Globe className="w-3.5 h-3.5 text-red-500" />
+              <span>{language === 'de' ? '🇩🇪 DE' : '🇬🇧 EN'}</span>
+            </button>
+
             {onToggleNightShift && (
               <button
                 onClick={onToggleNightShift}
-                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all shadow-sm ${
+                className={`hidden sm:flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all shadow-sm ${
                   isNightShift
                     ? 'bg-indigo-950 border-indigo-600 text-indigo-200 hover:bg-indigo-900'
                     : 'bg-amber-100 border-amber-300 text-amber-900 hover:bg-amber-200'
@@ -129,14 +147,14 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
 
             <button
               onClick={onOpenMobileInstall}
-              className={`hidden sm:flex items-center space-x-1.5 border px-3 py-1.5 rounded-lg transition-all ${
+              className={`hidden md:flex items-center space-x-1.5 border px-3 py-1.5 rounded-lg transition-all ${
                 isNightShift
                   ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
               }`}
             >
               <Smartphone className="w-3.5 h-3.5 text-emerald-500" />
-              <span>Get Mobile App</span>
+              <span>{t('nav.get_app')}</span>
             </button>
 
             <button
@@ -144,7 +162,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
               className="bg-red-600 hover:bg-red-500 text-white font-bold px-4 py-2 rounded-lg transition-all shadow-md flex items-center space-x-1.5"
             >
               <Lock className="w-3.5 h-3.5" />
-              <span>Sign In to Portal</span>
+              <span>{t('nav.login')}</span>
             </button>
           </div>
 
@@ -165,8 +183,8 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
           {/* Backdrop Masking Gradient for Crystal Clear Image Visibility and Text Legibility */}
           <div className={`absolute inset-0 transition-all duration-500 ${
             isNightShift 
-              ? 'bg-gradient-to-r from-slate-950/90 via-slate-950/80 to-slate-900/60' 
-              : 'bg-gradient-to-r from-slate-950/85 via-slate-950/75 to-slate-900/50'
+              ? 'bg-gradient-to-r from-slate-950/92 via-slate-950/85 to-slate-900/65' 
+              : 'bg-gradient-to-r from-slate-950/88 via-slate-950/78 to-slate-900/55'
           }`} />
         </div>
 
@@ -177,28 +195,42 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
             {/* Left Column: Headline & Value Prop */}
             <div className="lg:col-span-7 space-y-6 text-center lg:text-left">
               
-              <div className="inline-flex items-center space-x-2 bg-red-950/80 border border-red-800/80 px-3 py-1 rounded-full text-red-300 text-xs font-semibold backdrop-blur-sm">
-                <Award className="w-3.5 h-3.5 text-red-400" />
-                <span>State of Hesse Medical Courier & Specimen Logistics Engine</span>
+              <div className="inline-flex items-center space-x-2 bg-red-950/90 border border-red-800/90 px-3 py-1 rounded-full text-red-300 text-xs font-semibold backdrop-blur-sm shadow-md">
+                <MapPin className="w-3.5 h-3.5 text-red-400" />
+                <span>{t('landing.hq_badge')}</span>
               </div>
 
               <h1 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight leading-tight drop-shadow-md">
-                Mission-Critical <span className="text-red-500">UN 3373</span> Medical Logistics for Hessen Clinics & Labs
+                {t('landing.hero_title_1')} <span className="text-red-500">{t('landing.hero_title_highlight')}</span> {t('landing.hero_title_2')}
               </h1>
 
               <p className="text-slate-200 text-sm sm:text-base leading-relaxed max-w-2xl font-medium drop-shadow-sm">
-                MediGo connects university hospitals, pathology centers, and emergency laboratories across Frankfurt am Main, Marburg, Kassel, and Wiesbaden with temperature-monitored courier transport, offline state machine tracking, and GDPR-compliant legal AVV governance.
+                {t('landing.hero_desc')}
               </p>
 
+              {/* Wiesbaden HQ Strategic Expansion Card */}
+              <div className="bg-slate-900/90 border border-slate-700/90 backdrop-blur-md p-3.5 rounded-2xl flex items-start space-x-3 text-xs text-slate-200 shadow-xl">
+                <Compass className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-bold text-white text-sm flex items-center space-x-2">
+                    <span>{t('location.hq_full')}</span>
+                    <span className="text-[10px] bg-red-950 border border-red-800 text-red-300 font-mono px-2 py-0.5 rounded">65189 Wiesbaden</span>
+                  </h4>
+                  <p className="text-slate-300 text-[11px] mt-0.5 leading-relaxed">
+                    {t('landing.hq_detail')}
+                  </p>
+                </div>
+              </div>
+
               {/* Quick Feature Badges */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2 text-xs text-slate-100">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1 text-xs text-slate-100">
                 <div className="bg-slate-900/80 border border-slate-700/80 backdrop-blur-md p-2.5 rounded-xl flex items-center space-x-2 shadow-lg">
                   <Thermometer className="w-4 h-4 text-red-400 shrink-0" />
-                  <span className="font-medium">2-8°C & -20°C Thermal Logs</span>
+                  <span className="font-medium">2-8°C & 15-25°C Logs</span>
                 </div>
                 <div className="bg-slate-900/80 border border-slate-700/80 backdrop-blur-md p-2.5 rounded-xl flex items-center space-x-2 shadow-lg">
                   <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span className="font-medium">German P650 & TFG Compliant</span>
+                  <span className="font-medium">UN 3373 & P650 Compliant</span>
                 </div>
                 <div className="bg-slate-900/80 border border-slate-700/80 backdrop-blur-md p-2.5 rounded-xl flex items-center space-x-2 shadow-lg">
                   <Zap className="w-4 h-4 text-amber-400 shrink-0" />
@@ -208,13 +240,13 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
 
               {/* Demo Share Bar */}
               <div className="bg-slate-900/85 border border-slate-700/80 backdrop-blur-md p-3 rounded-xl flex items-center justify-between text-xs text-slate-300 shadow-xl">
-                <span className="truncate pr-2 font-medium">Need credentials for testing? Copy pre-filled demo accounts.</span>
+                <span className="truncate pr-2 font-medium">Testing environment initialized for Wiesbaden HQ. Copy demo logins:</span>
                 <button
                   onClick={handleCopyShare}
                   className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 px-3 py-1.5 rounded-lg flex items-center space-x-1 shrink-0 font-semibold shadow-sm transition-all"
                 >
                   {copiedShare ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedShare ? 'Copied!' : 'Copy Demo Logins'}</span>
+                  <span>{copiedShare ? t('common.copied') : t('common.copy')}</span>
                 </button>
               </div>
 
@@ -233,7 +265,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                   />
                   <div className="absolute bottom-1 right-1 bg-slate-950/90 backdrop-blur text-red-400 font-bold text-[9px] px-1.5 py-0.5 rounded border border-slate-700 flex items-center space-x-1">
                     {isNightShift ? <Moon className="w-3 h-3 text-indigo-400" /> : <Sun className="w-3 h-3 text-amber-400" />}
-                    <span>{isNightShift ? 'NIGHT F-MG 7741' : 'DAY F-MG 7741'}</span>
+                    <span>{isNightShift ? 'NIGHT WI-MG 7741' : 'DAY WI-MG 7741'}</span>
                   </div>
                 </div>
                 <div className="space-y-1 text-xs">
@@ -243,7 +275,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                         ? 'bg-indigo-900 text-indigo-200 border-indigo-600'
                         : 'bg-red-950 text-red-300 border-red-800'
                     }`}>
-                      {isNightShift ? '24/7 Notfall-Nachtdienst Active' : 'MediGo Hessen Fleet & Courier'}
+                      {isNightShift ? '24/7 Notfall-Nachtdienst Active' : 'MediGo Wiesbaden Fleet & Courier'}
                     </span>
                     {onToggleNightShift && (
                       <button
@@ -255,11 +287,11 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                     )}
                   </div>
                   <h4 className="font-bold text-white text-sm">
-                    {isNightShift ? '24/7 Emergency Night Shift Specimen Transport' : 'Dedicated UN 3373 Specimen Transport Vehicle'}
+                    {isNightShift ? '24/7 Emergency Night Shift Specimen Transport' : 'Dedicated UN 3373 Specimen Transport Vehicle (Wiesbaden HQ)'}
                   </h4>
                   <p className="text-slate-300 text-[11px] leading-relaxed">
                     {isNightShift
-                      ? 'Active 20:00 - 06:00 Night Shift protocol for emergency STAT lab samples between Hessen ER clinics with automated +25% night surcharge logs.'
+                      ? 'Active 20:00 - 06:00 Night Shift protocol for emergency STAT lab samples across Wiesbaden and Hessen clinics.'
                       : 'Equipped with GPS live tracking telemetry, P650 specimen boxes, active 2-8°C / -20°C temperature regulation, and reflective courier uniforms.'}
                   </p>
                 </div>
@@ -355,7 +387,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                       />
                     </div>
                     <div>
-                      <label className={`block font-semibold mb-1 ${isNightShift ? 'text-slate-300' : 'text-slate-700'}`}>Hessen Contract Number</label>
+                      <label className={`block font-semibold mb-1 ${isNightShift ? 'text-slate-300' : 'text-slate-700'}`}>Contract Number</label>
                       <input
                         type="text"
                         required
@@ -365,7 +397,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                           isNightShift ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
                         }`}
                       />
-                      <span className={`text-[10px] mt-0.5 block ${isNightShift ? 'text-slate-500' : 'text-slate-500'}`}>Preset: CTR-2026-UKF (Uniklinik Frankfurt)</span>
+                      <span className={`text-[10px] mt-0.5 block ${isNightShift ? 'text-slate-500' : 'text-slate-500'}`}>Preset: CTR-2026-UKF</span>
                     </div>
                   </>
                 )}
@@ -377,7 +409,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                       <input
                         type="text"
                         readOnly
-                        value="Hans Schmidt (Courier 104 • F-MG 7741)"
+                        value="Hans Schmidt (MediGo Courier • WI-MG 7741)"
                         className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-slate-300 focus:outline-none font-medium"
                       />
                     </div>
@@ -466,11 +498,62 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
       </div>
       </section>
 
+      {/* SPECIALIZED SERVICES HIGHLIGHT SECTION */}
+      <section className={`py-12 px-4 sm:px-6 transition-colors duration-300 ${
+        isNightShift ? 'bg-slate-950 text-white' : 'bg-white text-slate-900 border-t'
+      }`}>
+        <div className="max-w-7xl mx-auto space-y-8">
+          <div className="text-center max-w-3xl mx-auto space-y-2">
+            <div className="inline-flex items-center space-x-1.5 bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold">
+              <span>Wiesbaden Hub & National Logistics</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-extrabold">{t('landing.services_title')}</h2>
+            <p className="text-xs sm:text-sm text-slate-500">{t('landing.services_sub')}</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            
+            <div className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 space-y-3">
+              <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center font-bold text-lg">
+                🧪
+              </div>
+              <h3 className="font-bold text-base">{t('service.stem_cells')}</h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{t('service.stem_cells_desc')}</p>
+            </div>
+
+            <div className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 space-y-3">
+              <div className="w-10 h-10 bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center font-bold text-lg">
+                💊
+              </div>
+              <h3 className="font-bold text-base">{t('service.pharmacy_urgent')}</h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{t('service.pharmacy_urgent_desc')}</p>
+            </div>
+
+            <div className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 space-y-3">
+              <div className="w-10 h-10 bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400 rounded-xl flex items-center justify-center font-bold text-lg">
+                🩸
+              </div>
+              <h3 className="font-bold text-base">{t('service.un3373_blood')}</h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{t('service.un3373_blood_desc')}</p>
+            </div>
+
+            <div className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 space-y-3">
+              <div className="w-10 h-10 bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 rounded-xl flex items-center justify-center font-bold text-lg">
+                🔬
+              </div>
+              <h3 className="font-bold text-base">{t('service.small_volume')}</h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{t('service.small_volume_desc')}</p>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
       {/* PORTAL OVERVIEW SECTION */}
       <section className={`py-12 px-4 sm:px-6 border-t border-b transition-colors duration-300 ${
         isNightShift 
           ? 'bg-slate-900 border-slate-800 text-white' 
-          : 'bg-white border-slate-200 text-slate-900 shadow-sm'
+          : 'bg-slate-50 border-slate-200 text-slate-900 shadow-sm'
       }`}>
         <div className="max-w-7xl mx-auto space-y-8">
           
@@ -487,7 +570,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
             <div className={`p-6 rounded-2xl space-y-4 border transition-all ${
               isNightShift 
                 ? 'bg-slate-950 border-slate-800 hover:border-blue-500/50 text-slate-100' 
-                : 'bg-slate-50 border-slate-200 hover:border-blue-400 text-slate-900 shadow-sm'
+                : 'bg-white border-slate-200 hover:border-blue-400 text-slate-900 shadow-sm'
             }`}>
               <div className="w-12 h-12 bg-blue-950 text-blue-400 rounded-xl flex items-center justify-center border border-blue-800">
                 <Building2 className="w-6 h-6" />
@@ -517,7 +600,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                 className={`w-full font-bold py-2 rounded-xl text-xs transition-all flex items-center justify-center space-x-1 border ${
                   isNightShift 
                     ? 'bg-slate-900 hover:bg-slate-800 text-blue-400 border-blue-900' 
-                    : 'bg-white hover:bg-slate-100 text-blue-600 border-blue-300 shadow-sm'
+                    : 'bg-slate-50 hover:bg-slate-100 text-blue-600 border-blue-300 shadow-sm'
                 }`}
               >
                 <span>Launch Clinic Portal</span>
@@ -529,7 +612,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
             <div className={`p-6 rounded-2xl space-y-4 border transition-all ${
               isNightShift 
                 ? 'bg-slate-950 border-slate-800 hover:border-emerald-500/50 text-slate-100' 
-                : 'bg-slate-50 border-slate-200 hover:border-emerald-400 text-slate-900 shadow-sm'
+                : 'bg-white border-slate-200 hover:border-emerald-400 text-slate-900 shadow-sm'
             }`}>
               <div className="w-12 h-12 bg-emerald-950 text-emerald-400 rounded-xl flex items-center justify-center border border-emerald-800">
                 <Truck className="w-6 h-6" />
@@ -559,7 +642,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                 className={`w-full font-bold py-2 rounded-xl text-xs transition-all flex items-center justify-center space-x-1 border ${
                   isNightShift 
                     ? 'bg-slate-900 hover:bg-slate-800 text-emerald-400 border-emerald-900' 
-                    : 'bg-white hover:bg-slate-100 text-emerald-600 border-emerald-300 shadow-sm'
+                    : 'bg-slate-50 hover:bg-slate-100 text-emerald-600 border-emerald-300 shadow-sm'
                 }`}
               >
                 <span>Launch Driver App</span>
@@ -571,7 +654,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
             <div className={`p-6 rounded-2xl space-y-4 border transition-all ${
               isNightShift 
                 ? 'bg-slate-950 border-slate-800 hover:border-red-500/50 text-slate-100' 
-                : 'bg-slate-50 border-slate-200 hover:border-red-400 text-slate-900 shadow-sm'
+                : 'bg-white border-slate-200 hover:border-red-400 text-slate-900 shadow-sm'
             }`}>
               <div className="w-12 h-12 bg-red-950 text-red-400 rounded-xl flex items-center justify-center border border-red-800">
                 <ShieldCheck className="w-6 h-6" />
@@ -601,7 +684,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                 className={`w-full font-bold py-2 rounded-xl text-xs transition-all flex items-center justify-center space-x-1 border ${
                   isNightShift 
                     ? 'bg-slate-900 hover:bg-slate-800 text-red-400 border-red-900' 
-                    : 'bg-white hover:bg-slate-100 text-red-600 border-red-300 shadow-sm'
+                    : 'bg-slate-50 hover:bg-slate-100 text-red-600 border-red-300 shadow-sm'
                 }`}
               >
                 <span>Launch CEO Dashboard</span>
@@ -619,7 +702,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
         isNightShift ? 'border-slate-900 bg-slate-950 text-slate-500' : 'border-slate-200 bg-slate-100 text-slate-600'
       }`}>
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>© 2026 MediGo Logistics Hessen GmbH • Frankfurt am Main</span>
+          <span>© 2026 MediGo Logistics GmbH • Landeshauptstadt Wiesbaden</span>
           <span>EU DSGVO Data Privacy & Transfusionsgesetz (§ 15 TFG) Certified</span>
         </div>
       </footer>

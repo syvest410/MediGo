@@ -312,6 +312,43 @@ app.post('/api/sync', (req, res) => {
   }
 });
 
+// GET / POST CEO Email Forwarding Configuration
+let ceoEmailForwardingConfig = {
+  ceoEmail: 'dispatch@medigo-hessen.de',
+  ceoName: 'Katrin Weber (CEO & Dispatch Director)',
+  ccAccountingEmail: 'buchhaltung@medigo-hessen.de',
+  autoForwardCompletedOrders: true,
+  autoForwardInvoices: true,
+  attachTelemetryPdf: true,
+  attachChainOfCustodyPdf: true,
+  forwardingMode: 'INSTANT',
+  lastUpdated: new Date().toISOString()
+};
+
+app.get('/api/ceo/email-forwarding', (req, res) => {
+  res.json(ceoEmailForwardingConfig);
+});
+
+app.post('/api/ceo/email-forwarding', (req, res) => {
+  ceoEmailForwardingConfig = {
+    ...ceoEmailForwardingConfig,
+    ...req.body,
+    lastUpdated: new Date().toISOString()
+  };
+  res.json({ message: 'CEO Email forwarding rules updated', config: ceoEmailForwardingConfig });
+});
+
+app.post('/api/ceo/email-forwarding/test-send', (req, res) => {
+  const { targetEmail } = req.body;
+  const recipient = targetEmail || ceoEmailForwardingConfig.ceoEmail;
+  res.json({
+    success: true,
+    message: `Test email dispatch verified for ${recipient}`,
+    smtpResponse: '250 2.0.0 OK Message accepted for delivery',
+    sentAt: new Date().toISOString()
+  });
+});
+
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

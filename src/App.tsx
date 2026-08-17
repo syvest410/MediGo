@@ -15,6 +15,7 @@ import { CertificateExporter } from './components/AdminDashboard/CertificateExpo
 import { TariffHolidayManager } from './components/AdminDashboard/TariffHolidayManager';
 import { OperationalModeSelector } from './components/AdminDashboard/OperationalModeSelector';
 import { VacationShutdownManager } from './components/AdminDashboard/VacationShutdownManager';
+import { EmailForwardingManager } from './components/AdminDashboard/EmailForwardingManager';
 import { PrismaSchemaViewer } from './components/PrismaSchemaViewer';
 import { ClientPortal } from './components/ClientPortal/ClientPortal';
 import { LegalComplianceCenter } from './components/Compliance/LegalComplianceCenter';
@@ -29,6 +30,7 @@ import { Order, Role, OrderStatus, TemperatureTelemetry, User } from './types';
 import { INITIAL_ORDERS, INITIAL_USERS } from './lib/db';
 import { offlineQueue } from './lib/offlineQueue';
 import { tempSimulator } from './lib/temperatureSimulator';
+import { emailForwardingStore } from './lib/emailForwardingStore';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -37,7 +39,7 @@ export default function App() {
   const [activeRole, setActiveRole] = useState<Role>('DRIVER');
   const [currentUser, setCurrentUser] = useState<User | null>(INITIAL_USERS[1]); // Default to Driver Hans Schmidt
   const [viewMode, setViewMode] = useState<'DRIVER_MOBILE' | 'DISPATCH_DASHBOARD' | 'CLIENT_PORTAL' | 'LEGAL_COMPLIANCE' | 'PRISMA_SCHEMA' | 'SECURITY_AUDIT'>('DRIVER_MOBILE');
-  const [dashboardTab, setDashboardTab] = useState<'ORDERS' | 'MAP' | 'TARIFF_HOLIDAYS' | 'OPERATIONAL_MODES' | 'VACATION' | 'TELEMETRY' | 'AUDIT' | 'EXPORTS'>('ORDERS');
+  const [dashboardTab, setDashboardTab] = useState<'ORDERS' | 'MAP' | 'TARIFF_HOLIDAYS' | 'OPERATIONAL_MODES' | 'VACATION' | 'TELEMETRY' | 'AUDIT' | 'EXPORTS' | 'EMAIL_FORWARDING'>('ORDERS');
   
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(orders[0] || null);
   const [isOffline, setIsOffline] = useState<boolean>(offlineQueue.isForceOffline());
@@ -48,11 +50,8 @@ export default function App() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState<boolean>(false);
 
-  // Dynamic Day / Night Shift State (Defaults automatically based on German time: Night Shift 20:00 - 06:00)
-  const [isNightShift, setIsNightShift] = useState<boolean>(() => {
-    const currentHour = new Date().getHours();
-    return currentHour >= 20 || currentHour < 6;
-  });
+  // Visual Theme State (Defaults to Daylight Ops Mode "Feels Alive")
+  const [isNightShift, setIsNightShift] = useState<boolean>(false);
 
   const handleToggleNightShift = () => {
     setIsNightShift(prev => !prev);
@@ -150,6 +149,9 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setOrders(prev => prev.map(o => o.id === orderId ? data.order : o));
+        if (targetStatus === 'DELIVERED' && data.order) {
+          emailForwardingStore.triggerOrderCompletedForwarding(data.order);
+        }
       } else {
         const errData = await res.json();
         alert(`Transition rejected under UN 3373 rules:\n${errData.errors?.join('\n') || errData.message}`);
@@ -157,7 +159,16 @@ export default function App() {
     } catch (e) {
       // Fallback offline queue on network drop
       offlineQueue.enqueueAction(orderId, targetStatus as any, { targetStatus, ...context }, coords);
-      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: targetStatus } : o));
+      setOrders(prev => prev.map(o => {
+        if (o.id === orderId) {
+          const updated = { ...o, status: targetStatus };
+          if (targetStatus === 'DELIVERED') {
+            emailForwardingStore.triggerOrderCompletedForwarding(updated);
+          }
+          return updated;
+        }
+        return o;
+      }));
     }
   };
 
@@ -429,6 +440,17 @@ export default function App() {
               >
                 Certificates & Exports
               </button>
+
+              <button
+                onClick={() => setDashboardTab('EMAIL_FORWARDING')}
+                className={`px-3.5 py-2 rounded-lg font-semibold transition-all flex items-center space-x-1.5 ${
+                  dashboardTab === 'EMAIL_FORWARDING' 
+                    ? 'bg-red-600 text-white shadow font-bold' 
+                    : isNightShift ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <span>📧 Email & Invoice Forwarding</span>
+              </button>
             </div>
 
             {/* Dashboard View Switcher */}
@@ -479,6 +501,10 @@ export default function App() {
 
             {dashboardTab === 'EXPORTS' && (
               <CertificateExporter orders={orders} />
+            )}
+
+            {dashboardTab === 'EMAIL_FORWARDING' && (
+              <EmailForwardingManager isNightShift={isNightShift} />
             )}
 
           </div>
@@ -541,7 +567,17 @@ export default function App() {
         onSelectUser={(user, mode) => {
           setCurrentUser(user);
           setActiveRole(user.role);
-          if (mode) setViewMode(mode);
+          
+          // Strict Role Isolation Enforcement upon sign in
+          if (user.role === 'CLIENT_CLINIC') {
+            setViewMode('CLIENT_PORTAL');
+          } else if (user.role === 'DRIVER') {
+            setViewMode('DRIVER_MOBILE');
+          } else if (mode) {
+            setViewMode(mode);
+          } else {
+            setViewMode('DISPATCH_DASHBOARD');
+          }
         }}
       />
 

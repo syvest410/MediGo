@@ -271,3 +271,31 @@ export const GERMAN_SAMPLE_CITIES = [
   { name: 'Hamburg', coords: { lat: 53.5511, lng: 9.9937 } },
   { name: 'Köln', coords: { lat: 50.9375, lng: 6.9603 } }
 ];
+
+export interface EmailForwardingSettings {
+  ceoEmail: string;
+  ceoName: string;
+  ccAccountingEmail?: string;
+  autoForwardCompletedOrders: boolean;
+  autoForwardInvoices: boolean;
+  attachTelemetryPdf: boolean;
+  attachChainOfCustodyPdf: boolean;
+  forwardingMode: 'INSTANT' | 'DAILY_DIGEST';
+  digestTimeOfDay?: string; // e.g. "18:00"
+  lastUpdated: string;
+}
+
+export interface ForwardedEmailLog {
+  id: string;
+  type: 'COMPLETED_ORDER' | 'INVOICE' | 'TEST_DISPATCH' | 'DAILY_DIGEST';
+  recipientEmail: string;
+  ccEmail?: string;
+  subject: string;
+  orderTrackingNumber?: string;
+  invoiceNumber?: string;
+  amountEur?: number;
+  attachments: string[];
+  status: 'SENT' | 'QUEUED' | 'DELIVERED' | 'FAILED';
+  sentAt: string;
+  bodyPreview: string;
+}

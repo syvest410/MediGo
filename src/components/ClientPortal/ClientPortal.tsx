@@ -212,7 +212,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({ orders, onCreateOrde
             </div>
 
             <div className="space-y-1">
-              <label className="text-slate-300 font-medium">Clinic Contact Phone (24/7 Hotline)</label>
+              <label className="text-slate-300 font-medium">Clinic Contact Phone (Operating Hours Dispatch)</label>
               <input
                 type="text"
                 value={contactPhone}
@@ -242,6 +242,93 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({ orders, onCreateOrde
                 required
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:outline-none focus:border-emerald-500"
               />
+            </div>
+
+            <div className="space-y-1 md:col-span-2">
+              <label className="text-slate-300 font-medium flex items-center justify-between">
+                <span>Dedicated Medical Service Category</span>
+                <span className="text-[11px] text-emerald-400 font-normal">GDP & UN 3373 Certified</span>
+              </label>
+              
+              {/* Service Category Quick Selection Badges */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pb-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSampleCategory('Stammzellen / Apheresen (Stem Cells)');
+                    setTransportType('REFRIGERATED_2_8C');
+                    setSpecialNotes('Stem Cell / Apheresis transport. High Priority GDP Handling (Max 4h window).');
+                  }}
+                  className={`p-2 rounded-lg border text-left flex flex-col justify-between transition-all ${
+                    sampleCategory.includes('Stammzellen')
+                      ? 'bg-emerald-950 border-emerald-500 text-emerald-200 ring-1 ring-emerald-500'
+                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                  }`}
+                >
+                  <span className="font-bold text-[11px] text-white">🧪 Stammzellen / Apheresen</span>
+                  <span className="text-[10px] text-emerald-400 font-mono mt-0.5">GDP Stem Cells</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSampleCategory('Apotheken-Eilfahrt (Urgent Pharmacy)');
+                    setTransportType('AMBIENT_15_25C');
+                    setSpecialNotes('Urgent Pharmacy Delivery: Emergency Medication & Cytostatics.');
+                  }}
+                  className={`p-2 rounded-lg border text-left flex flex-col justify-between transition-all ${
+                    sampleCategory.includes('Apotheken')
+                      ? 'bg-blue-950 border-blue-500 text-blue-200 ring-1 ring-blue-500'
+                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                  }`}
+                >
+                  <span className="font-bold text-[11px] text-white">💊 Apotheken-Eilfahrt</span>
+                  <span className="text-[10px] text-blue-400 font-mono mt-0.5">Urgent Pharmacy</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSampleCategory('UN 3373 Cat B Human Blood & Tissue');
+                    setTransportType('REFRIGERATED_2_8C');
+                  }}
+                  className={`p-2 rounded-lg border text-left flex flex-col justify-between transition-all ${
+                    sampleCategory.includes('UN 3373 Cat B')
+                      ? 'bg-red-950 border-red-500 text-red-200 ring-1 ring-red-500'
+                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                  }`}
+                >
+                  <span className="font-bold text-[11px] text-white">🩸 UN 3373 Blood & Tissue</span>
+                  <span className="text-[10px] text-red-400 font-mono mt-0.5">Diagnostic Samples</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSampleCategory('Biostoff UN 3373 Kleinstmengen');
+                    setTransportType('AMBIENT_15_25C');
+                  }}
+                  className={`p-2 rounded-lg border text-left flex flex-col justify-between transition-all ${
+                    sampleCategory.includes('Kleinstmengen')
+                      ? 'bg-amber-950 border-amber-500 text-amber-200 ring-1 ring-amber-500'
+                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                  }`}
+                >
+                  <span className="font-bold text-[11px] text-white">🔬 UN 3373 Kleinstmengen</span>
+                  <span className="text-[10px] text-amber-400 font-mono mt-0.5">Small Volume Courier</span>
+                </button>
+              </div>
+
+              <select
+                value={sampleCategory}
+                onChange={(e) => setSampleCategory(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:outline-none focus:border-emerald-500 font-semibold"
+              >
+                <option value="Stammzellen / Apheresen (Stem Cells)">Stammzellen / Apheresen (Stem Cells & Cell Products - GDP Certified)</option>
+                <option value="Apotheken-Eilfahrt (Urgent Pharmacy)">Apotheken-Eilfahrt (Urgent Pharmacy / Emergency Medication)</option>
+                <option value="UN 3373 Cat B Human Blood & Tissue">UN 3373 Category B (Human Blood, Tissue & Biostoff)</option>
+                <option value="Biostoff UN 3373 Kleinstmengen">Biostoff UN 3373 Kleinstmengen (Small Volume Express Courier)</option>
+              </select>
             </div>
 
             <div className="space-y-1">

@@ -6,18 +6,18 @@ export const INITIAL_USERS: User[] = [
   {
     id: 'USR-DISPATCHER-01',
     email: 'dispatch@medigo-hessen.de',
-    name: 'Katrin Weber (MediGo Dispatch Frankfurt)',
+    name: 'Katrin Weber (MediGo Dispatch Wiesbaden Zentrale)',
     role: 'DISPATCHER',
-    phone: '+49 69 9882 100',
-    organization: 'MediGo Zentrale Hessen (Frankfurt am Main)'
+    phone: '+49 611 9882 100',
+    organization: 'MediGo Hauptstandort & Dispatch Zentrale (Wiesbaden)'
   },
   {
     id: 'USR-DRIVER-01',
     email: 'hans.schmidt@medigo-hessen.de',
-    name: 'Hans Schmidt (MediGo Kurier 104 - F-MG 7741)',
+    name: 'Hans Schmidt (MediGo Kurier WI-MG 7741)',
     role: 'DRIVER',
     phone: '+49 171 9882310',
-    organization: 'MediGo Hessen Express Logistics'
+    organization: 'MediGo Wiesbaden Fleet & Hessen Express Logistics'
   },
   {
     id: 'USR-CLINIC-01',

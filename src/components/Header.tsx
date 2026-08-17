@@ -24,8 +24,11 @@ import {
   ChevronRight,
   Sun,
   Moon,
-  Sparkles
+  Sparkles,
+  Globe,
+  MapPin
 } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 interface HeaderProps {
   activeRole: Role;
@@ -65,6 +68,7 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleNightShift,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { language, toggleLanguage, t } = useLanguage();
 
   return (
     <header className={`border-b sticky top-0 z-40 transition-colors duration-300 select-none ${
@@ -88,7 +92,7 @@ export const Header: React.FC<HeaderProps> = ({
               />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center space-x-1.5">
+              <div className="flex items-center space-x-1.5 flex-wrap">
                 <h1 className={`text-lg sm:text-xl font-black tracking-tight flex items-center space-x-0.5 ${
                   isNightShift ? 'text-white' : 'text-slate-900'
                 }`}>
@@ -97,17 +101,31 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className={`text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wide truncate ${
                   isNightShift ? 'bg-red-950 text-red-200 border-red-700' : 'bg-red-100 text-red-700 border-red-200'
                 }`}>
-                  Hessen Logistics
+                  Wiesbaden HQ • Hessen
                 </span>
               </div>
               <p className={`text-[10px] sm:text-xs truncate ${isNightShift ? 'text-slate-400' : 'text-slate-500'}`}>
-                UN 3373 Medical Courier & Lab Express • Hessen
+                UN 3373 Medical Logistics • Wiesbaden Hub & Hessen Express
               </p>
             </div>
           </div>
 
           {/* User Badge & Desktop Action Buttons */}
           <div className="hidden lg:flex items-center space-x-2">
+            
+            {/* Language Switcher Toggle (German DE / English EN) */}
+            <button
+              onClick={toggleLanguage}
+              className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all min-h-[36px] ${
+                isNightShift
+                  ? 'bg-slate-800 hover:bg-slate-700 text-slate-100 border-slate-700 shadow-sm'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-900 border-slate-300 shadow-sm'
+              }`}
+              title="Switch Language (German / English)"
+            >
+              <Globe className="w-3.5 h-3.5 text-red-500" />
+              <span>{language === 'de' ? '🇩🇪 DE' : '🇬🇧 EN'}</span>
+            </button>
             
             {/* Dynamic Day / Night Shift Mode Toggle */}
             {onToggleNightShift && (
@@ -172,15 +190,15 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </button>
 
-            {/* Role Switcher */}
-            {onOpenLoginPortal && (
+            {/* Role Switcher (STRICT RBAC: CEO / DISPATCHER ONLY) */}
+            {onOpenLoginPortal && (currentUser?.role === 'DISPATCHER' || currentUser?.role === 'ADMIN') && (
               <button
                 onClick={onOpenLoginPortal}
-                className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-lg flex items-center space-x-1.5 text-xs transition-all shadow-md min-h-[36px]"
-                title="Switch role account or view shared demo credentials"
+                className="bg-amber-500/20 hover:bg-amber-500/30 border border-amber-600/60 text-amber-300 font-bold px-3 py-1.5 rounded-lg flex items-center space-x-1.5 text-xs transition-all shadow-md min-h-[36px]"
+                title="Executive Control: Switch active role account or test permissions"
               >
                 <Key className="w-3.5 h-3.5 text-amber-400" />
-                <span>Switch Role</span>
+                <span>Switch Role (CEO)</span>
               </button>
             )}
 
@@ -209,8 +227,21 @@ export const Header: React.FC<HeaderProps> = ({
 
           </div>
 
-          {/* Mobile Right Bar: Mobile Menu Button & Quick Day/Night Toggle */}
-          <div className="flex lg:hidden items-center space-x-2">
+          {/* Mobile Right Bar: Language Switcher, Mobile Menu Button & Quick Day/Night Toggle */}
+          <div className="flex lg:hidden items-center space-x-1.5">
+            <button
+              onClick={toggleLanguage}
+              className={`p-2 rounded-xl border text-xs font-bold transition-all min-w-[42px] min-h-[42px] flex items-center justify-center ${
+                isNightShift
+                  ? 'bg-slate-800 border-slate-700 text-slate-100'
+                  : 'bg-slate-100 border-slate-300 text-slate-900'
+              }`}
+              aria-label="Switch Language"
+              title="Switch Language (DE / EN)"
+            >
+              <span className="text-xs font-black">{language === 'de' ? '🇩🇪' : '🇬🇧'}</span>
+            </button>
+
             {onToggleNightShift && (
               <button
                 onClick={onToggleNightShift}
@@ -246,103 +277,135 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Desktop & Tablet Responsive View Mode Tabs Bar */}
         <div className="mt-2 pt-2 border-t border-slate-800/80 hidden sm:flex items-center justify-between gap-2 overflow-x-auto no-scrollbar scroll-smooth">
           
-          <div className="flex items-center space-x-1.5 bg-slate-950/80 p-1 rounded-xl border border-slate-800 shrink-0">
-            
-            {/* Show Clinic Portal for CLIENT_CLINIC or DISPATCHER/ADMIN */}
-            {(currentUser?.role === 'CLIENT_CLINIC' || currentUser?.role === 'DISPATCHER' || currentUser?.role === 'ADMIN' || !currentUser) && (
-              <button
-                onClick={() => {
-                  setViewMode('CLIENT_PORTAL');
-                  setActiveRole('CLIENT_CLINIC');
-                }}
-                className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all min-h-[34px] ${
-                  viewMode === 'CLIENT_PORTAL'
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                }`}
-              >
-                <Building2 className="w-3.5 h-3.5" />
-                <span>Clinic Portal</span>
-              </button>
+          <div className="flex items-center space-x-1.5 shrink-0">
+            {/* ROLE 1: CLIENT CLINIC SCOPE */}
+            {currentUser?.role === 'CLIENT_CLINIC' && (
+              <div className="flex items-center space-x-2 bg-slate-950/90 p-1 rounded-xl border border-slate-800">
+                <div className="flex items-center space-x-2 text-xs font-bold text-blue-300 bg-blue-950/90 px-3 py-1.5 rounded-lg border border-blue-800">
+                  <Building2 className="w-4 h-4 text-blue-400" />
+                  <span>Clinic Portal Scope ({currentUser.organization || 'Klinikum Frankfurt'})</span>
+                </div>
+
+                <button
+                  onClick={() => setViewMode('SECURITY_AUDIT')}
+                  className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all ${
+                    viewMode === 'SECURITY_AUDIT'
+                      ? 'bg-amber-600 text-white shadow-md'
+                      : 'text-amber-400 hover:text-amber-200 hover:bg-slate-800'
+                  }`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Security Matrix</span>
+                </button>
+              </div>
             )}
 
-            {/* Show Driver App for DRIVER or DISPATCHER/ADMIN */}
-            {(currentUser?.role === 'DRIVER' || currentUser?.role === 'DISPATCHER' || currentUser?.role === 'ADMIN' || !currentUser) && (
-              <button
-                onClick={() => {
-                  setViewMode('DRIVER_MOBILE');
-                  setActiveRole('DRIVER');
-                }}
-                className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all min-h-[34px] ${
-                  viewMode === 'DRIVER_MOBILE'
-                    ? 'bg-emerald-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                }`}
-              >
-                <Smartphone className="w-3.5 h-3.5" />
-                <span>Driver App</span>
-              </button>
+            {/* ROLE 2: DRIVER MOBILE SCOPE */}
+            {currentUser?.role === 'DRIVER' && (
+              <div className="flex items-center space-x-2 bg-slate-950/90 p-1 rounded-xl border border-slate-800">
+                <div className="flex items-center space-x-2 text-xs font-bold text-emerald-300 bg-emerald-950/90 px-3 py-1.5 rounded-lg border border-emerald-800">
+                  <Smartphone className="w-4 h-4 text-emerald-400" />
+                  <span>Courier Driver Mobile Scope ({currentUser.name})</span>
+                </div>
+
+                <button
+                  onClick={() => setViewMode('SECURITY_AUDIT')}
+                  className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all ${
+                    viewMode === 'SECURITY_AUDIT'
+                      ? 'bg-amber-600 text-white shadow-md'
+                      : 'text-amber-400 hover:text-amber-200 hover:bg-slate-800'
+                  }`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Security Matrix</span>
+                </button>
+              </div>
             )}
 
-            {/* Show Dispatch/CEO ONLY for DISPATCHER or ADMIN */}
+            {/* ROLE 3: CEO / DISPATCHER (UNRESTRICTED EXECUTIVE CONTROL) */}
             {(currentUser?.role === 'DISPATCHER' || currentUser?.role === 'ADMIN' || !currentUser) && (
-              <button
-                onClick={() => {
-                  setViewMode('DISPATCH_DASHBOARD');
-                  setActiveRole('ADMIN');
-                }}
-                className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all min-h-[34px] ${
-                  viewMode === 'DISPATCH_DASHBOARD'
-                    ? 'bg-red-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                }`}
-              >
-                <Monitor className="w-3.5 h-3.5" />
-                <span>Dispatch / CEO</span>
-              </button>
-            )}
+              <div className="flex items-center space-x-1.5 bg-slate-950/80 p-1 rounded-xl border border-slate-800 shrink-0">
+                <button
+                  onClick={() => {
+                    setViewMode('CLIENT_PORTAL');
+                    setActiveRole('CLIENT_CLINIC');
+                  }}
+                  className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all min-h-[34px] ${
+                    viewMode === 'CLIENT_PORTAL'
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  <span>Clinic Portal</span>
+                </button>
 
-            {/* Show Legal AVV for CEO / DISPATCHER */}
-            {(currentUser?.role === 'DISPATCHER' || currentUser?.role === 'ADMIN' || !currentUser) && (
-              <button
-                onClick={() => setViewMode('LEGAL_COMPLIANCE')}
-                className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all min-h-[34px] ${
-                  viewMode === 'LEGAL_COMPLIANCE'
-                    ? 'bg-red-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                }`}
-              >
-                <Scale className="w-3.5 h-3.5" />
-                <span>Legal & GDPR</span>
-              </button>
-            )}
+                <button
+                  onClick={() => {
+                    setViewMode('DRIVER_MOBILE');
+                    setActiveRole('DRIVER');
+                  }}
+                  className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all min-h-[34px] ${
+                    viewMode === 'DRIVER_MOBILE'
+                      ? 'bg-emerald-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <Smartphone className="w-3.5 h-3.5" />
+                  <span>Driver App</span>
+                </button>
 
-            {/* Security Audit Matrix Tab (Available to all for verification) */}
-            <button
-              onClick={() => setViewMode('SECURITY_AUDIT')}
-              className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all min-h-[34px] ${
-                viewMode === 'SECURITY_AUDIT'
-                  ? 'bg-amber-600 text-white shadow-md'
-                  : 'text-amber-400 hover:text-amber-200 hover:bg-slate-800'
-              }`}
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Security Matrix</span>
-            </button>
+                <button
+                  onClick={() => {
+                    setViewMode('DISPATCH_DASHBOARD');
+                    setActiveRole('ADMIN');
+                  }}
+                  className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all min-h-[34px] ${
+                    viewMode === 'DISPATCH_DASHBOARD'
+                      ? 'bg-red-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <Monitor className="w-3.5 h-3.5" />
+                  <span>Dispatch / CEO</span>
+                </button>
 
-            {/* Prisma Schema Tab for CEO */}
-            {(currentUser?.role === 'DISPATCHER' || currentUser?.role === 'ADMIN' || !currentUser) && (
-              <button
-                onClick={() => setViewMode('PRISMA_SCHEMA')}
-                className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all min-h-[34px] ${
-                  viewMode === 'PRISMA_SCHEMA'
-                    ? 'bg-red-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                }`}
-              >
-                <FileCode className="w-3.5 h-3.5" />
-                <span>Prisma Schema</span>
-              </button>
+                <button
+                  onClick={() => setViewMode('LEGAL_COMPLIANCE')}
+                  className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all min-h-[34px] ${
+                    viewMode === 'LEGAL_COMPLIANCE'
+                      ? 'bg-red-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <Scale className="w-3.5 h-3.5" />
+                  <span>Legal & GDPR</span>
+                </button>
+
+                <button
+                  onClick={() => setViewMode('SECURITY_AUDIT')}
+                  className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all min-h-[34px] ${
+                    viewMode === 'SECURITY_AUDIT'
+                      ? 'bg-amber-600 text-white shadow-md'
+                      : 'text-amber-400 hover:text-amber-200 hover:bg-slate-800'
+                  }`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Security Matrix</span>
+                </button>
+
+                <button
+                  onClick={() => setViewMode('PRISMA_SCHEMA')}
+                  className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all min-h-[34px] ${
+                    viewMode === 'PRISMA_SCHEMA'
+                      ? 'bg-red-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <FileCode className="w-3.5 h-3.5" />
+                  <span>Prisma Schema</span>
+                </button>
+              </div>
             )}
           </div>
 
@@ -383,95 +446,121 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Mobile View Mode Navigation Pill Bar (always visible on mobile screens) */}
         <div className="mt-2 pt-2 border-t border-slate-800/80 flex sm:hidden items-center space-x-1 overflow-x-auto pb-1 no-scrollbar">
-          {(currentUser?.role === 'CLIENT_CLINIC' || currentUser?.role === 'DISPATCHER' || currentUser?.role === 'ADMIN' || !currentUser) && (
-            <button
-              onClick={() => {
-                setViewMode('CLIENT_PORTAL');
-                setActiveRole('CLIENT_CLINIC');
-              }}
-              className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-2 rounded-xl shrink-0 min-h-[44px] ${
-                viewMode === 'CLIENT_PORTAL'
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-slate-800 text-slate-300'
-              }`}
-            >
-              <Building2 className="w-4 h-4" />
-              <span>Clinic Portal</span>
-            </button>
+          {currentUser?.role === 'CLIENT_CLINIC' && (
+            <div className="flex items-center space-x-1.5 shrink-0">
+              <span className="bg-blue-950 text-blue-300 border border-blue-800 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1">
+                <Building2 className="w-3.5 h-3.5 text-blue-400" />
+                <span>Clinic Portal Scope</span>
+              </span>
+              <button
+                onClick={() => setViewMode('SECURITY_AUDIT')}
+                className="bg-amber-950 text-amber-300 border border-amber-800 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                <span>Security</span>
+              </button>
+            </div>
           )}
 
-          {(currentUser?.role === 'DRIVER' || currentUser?.role === 'DISPATCHER' || currentUser?.role === 'ADMIN' || !currentUser) && (
-            <button
-              onClick={() => {
-                setViewMode('DRIVER_MOBILE');
-                setActiveRole('DRIVER');
-              }}
-              className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-2 rounded-xl shrink-0 min-h-[44px] ${
-                viewMode === 'DRIVER_MOBILE'
-                  ? 'bg-emerald-600 text-white shadow-md'
-                  : 'bg-slate-800 text-slate-300'
-              }`}
-            >
-              <Smartphone className="w-4 h-4" />
-              <span>Driver App</span>
-            </button>
-          )}
-
-          {(currentUser?.role === 'DISPATCHER' || currentUser?.role === 'ADMIN' || !currentUser) && (
-            <button
-              onClick={() => {
-                setViewMode('DISPATCH_DASHBOARD');
-                setActiveRole('ADMIN');
-              }}
-              className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-2 rounded-xl shrink-0 min-h-[44px] ${
-                viewMode === 'DISPATCH_DASHBOARD'
-                  ? 'bg-red-600 text-white shadow-md'
-                  : 'bg-slate-800 text-slate-300'
-              }`}
-            >
-              <Monitor className="w-4 h-4" />
-              <span>Dispatch CEO</span>
-            </button>
-          )}
-
-          <button
-            onClick={() => setViewMode('SECURITY_AUDIT')}
-            className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-2 rounded-xl shrink-0 min-h-[44px] ${
-              viewMode === 'SECURITY_AUDIT'
-                ? 'bg-amber-600 text-white shadow-md'
-                : 'bg-slate-800 text-amber-300'
-            }`}
-          >
-            <ShieldCheck className="w-4 h-4" />
-            <span>Security Matrix</span>
-          </button>
-
-          {(currentUser?.role === 'DISPATCHER' || currentUser?.role === 'ADMIN' || !currentUser) && (
-            <button
-              onClick={() => setViewMode('LEGAL_COMPLIANCE')}
-              className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-2 rounded-xl shrink-0 min-h-[44px] ${
-                viewMode === 'LEGAL_COMPLIANCE'
-                  ? 'bg-red-600 text-white shadow-md'
-                  : 'bg-slate-800 text-slate-300'
-              }`}
-            >
-              <Scale className="w-4 h-4" />
-              <span>Legal AVV</span>
-            </button>
+          {currentUser?.role === 'DRIVER' && (
+            <div className="flex items-center space-x-1.5 shrink-0">
+              <span className="bg-emerald-950 text-emerald-300 border border-emerald-800 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1">
+                <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Driver Mobile Scope</span>
+              </span>
+              <button
+                onClick={() => setViewMode('SECURITY_AUDIT')}
+                className="bg-amber-950 text-amber-300 border border-amber-800 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                <span>Security</span>
+              </button>
+            </div>
           )}
 
           {(currentUser?.role === 'DISPATCHER' || currentUser?.role === 'ADMIN' || !currentUser) && (
-            <button
-              onClick={() => setViewMode('PRISMA_SCHEMA')}
-              className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-2 rounded-xl shrink-0 min-h-[44px] ${
-                viewMode === 'PRISMA_SCHEMA'
-                  ? 'bg-red-600 text-white shadow-md'
-                  : 'bg-slate-800 text-slate-300'
-              }`}
-            >
-              <FileCode className="w-4 h-4" />
-              <span>Schema</span>
-            </button>
+            <>
+              <button
+                onClick={() => {
+                  setViewMode('CLIENT_PORTAL');
+                  setActiveRole('CLIENT_CLINIC');
+                }}
+                className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-2 rounded-xl shrink-0 min-h-[44px] ${
+                  viewMode === 'CLIENT_PORTAL'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-slate-800 text-slate-300'
+                }`}
+              >
+                <Building2 className="w-4 h-4" />
+                <span>Clinic Portal</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setViewMode('DRIVER_MOBILE');
+                  setActiveRole('DRIVER');
+                }}
+                className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-2 rounded-xl shrink-0 min-h-[44px] ${
+                  viewMode === 'DRIVER_MOBILE'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'bg-slate-800 text-slate-300'
+                }`}
+              >
+                <Smartphone className="w-4 h-4" />
+                <span>Driver App</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setViewMode('DISPATCH_DASHBOARD');
+                  setActiveRole('ADMIN');
+                }}
+                className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-2 rounded-xl shrink-0 min-h-[44px] ${
+                  viewMode === 'DISPATCH_DASHBOARD'
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'bg-slate-800 text-slate-300'
+                }`}
+              >
+                <Monitor className="w-4 h-4" />
+                <span>Dispatch CEO</span>
+              </button>
+
+              <button
+                onClick={() => setViewMode('SECURITY_AUDIT')}
+                className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-2 rounded-xl shrink-0 min-h-[44px] ${
+                  viewMode === 'SECURITY_AUDIT'
+                    ? 'bg-amber-600 text-white shadow-md'
+                    : 'bg-slate-800 text-amber-300'
+                }`}
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>Security Matrix</span>
+              </button>
+
+              <button
+                onClick={() => setViewMode('LEGAL_COMPLIANCE')}
+                className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-2 rounded-xl shrink-0 min-h-[44px] ${
+                  viewMode === 'LEGAL_COMPLIANCE'
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'bg-slate-800 text-slate-300'
+                }`}
+              >
+                <Scale className="w-4 h-4" />
+                <span>Legal AVV</span>
+              </button>
+
+              <button
+                onClick={() => setViewMode('PRISMA_SCHEMA')}
+                className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-2 rounded-xl shrink-0 min-h-[44px] ${
+                  viewMode === 'PRISMA_SCHEMA'
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'bg-slate-800 text-slate-300'
+                }`}
+              >
+                <FileCode className="w-4 h-4" />
+                <span>Schema</span>
+              </button>
+            </>
           )}
         </div>
 
@@ -492,15 +581,15 @@ export const Header: React.FC<HeaderProps> = ({
                   </div>
                 </div>
 
-                {onOpenLoginPortal && (
+                {onOpenLoginPortal && (currentUser?.role === 'DISPATCHER' || currentUser?.role === 'ADMIN') && (
                   <button
                     onClick={() => {
                       setMobileMenuOpen(false);
                       onOpenLoginPortal();
                     }}
-                    className="bg-slate-800 text-amber-300 border border-slate-700 px-2.5 py-1.5 rounded-lg text-xs font-bold"
+                    className="bg-amber-500/20 text-amber-300 border border-amber-600/60 px-2.5 py-1.5 rounded-lg text-xs font-bold"
                   >
-                    Switch
+                    Switch Role
                   </button>
                 )}
               </div>
