@@ -1,0 +1,433 @@
+{
+  "users": [
+    {
+      "id": "USR-ADMIN-01",
+      "email": "nsansvester89@gmail.com",
+      "name": "Admin (nsansvester89)",
+      "role": "ADMIN",
+      "phone": "+49 170 0000000",
+      "organization": "BioDispatch / MediGo Zentrale",
+      "facilityType": "HQ",
+      "active": true,
+      "passwordHash": "$2b$10$PA7eyo47/LA3i0JB0894rewPl6AAAw87vJvqBtYEQiXvl626FkoNm",
+      "createdAt": "2026-01-01T08:00:00.000Z"
+    },
+    {
+      "id": "USR-DISPATCHER-01",
+      "email": "dispatch@medigo-hessen.de",
+      "name": "Katrin Weber (Dispatch Zentrale Wiesbaden)",
+      "role": "DISPATCHER",
+      "phone": "+49 611 9882 100",
+      "organization": "MediGo Hauptstandort & Dispatch Zentrale (Wiesbaden)",
+      "facilityType": "HQ",
+      "active": true,
+      "passwordHash": "$2b$10$96bV/rpT4e56EzgxDmMty.wnkV3PqFxtxQZh89VWjUKlhZlBgwce.",
+      "createdAt": "2026-01-01T08:00:00.000Z"
+    },
+    {
+      "id": "USR-DRIVER-01",
+      "email": "hans.schmidt@medigo-hessen.de",
+      "name": "Hans Schmidt (MediGo Kurier WI-MG 7741)",
+      "role": "DRIVER",
+      "phone": "+49 171 9882310",
+      "organization": "MediGo Wiesbaden Fleet & Hessen Express Logistics",
+      "vehicleRegNumber": "F-MG 7741 (Thermo Van)",
+      "facilityType": "COURIER",
+      "active": true,
+      "passwordHash": "$2b$10$dY0QuRDCHXCKMgBGLJD4fujBmEl16ysmoahuTLiWs6WH4ku8tO/3q",
+      "createdAt": "2026-01-05T08:00:00.000Z"
+    },
+    {
+      "id": "USR-CLINIC-01",
+      "email": "probeneingang@kgu.de",
+      "name": "Dr. Martin Hoffmann",
+      "role": "CLIENT_CLINIC",
+      "phone": "+49 69 6301 0",
+      "organization": "Universitätsklinikum Frankfurt am Main (Hessen)",
+      "contractNumber": "CTR-2026-UKF-HE-01",
+      "facilityType": "CLINIC",
+      "facilityAddress": "Theodor-Stern-Kai 7, 60590 Frankfurt am Main, Hessen",
+      "active": true,
+      "passwordHash": "$2b$10$hyaTPnAYMBSZdI8we0Km3OXOgI/B6c61dtk24WEmFp/M.nKLMN5re",
+      "createdAt": "2026-01-10T08:00:00.000Z"
+    },
+    {
+      "id": "USR-LAB-01",
+      "email": "empfang@synlab-hessen.de",
+      "name": "Sabine Neumann (Laborleitung)",
+      "role": "LAB_STAFF",
+      "phone": "+49 69 7000 88",
+      "organization": "Synlab Medizinisches Versorgungszentrum Frankfurt-Hessen",
+      "contractNumber": "CTR-2026-SYNLAB-04",
+      "facilityType": "LABORATORY",
+      "facilityAddress": "Paul-Ehrlich-Straße 51, 60596 Frankfurt am Main",
+      "active": true,
+      "passwordHash": "$2b$10$DM.yc5pZwN35UaU.l2wydOpNr2YrJCXt2IYWWlS.tnuE3tB8sVN0O",
+      "createdAt": "2026-01-12T08:00:00.000Z"
+    }
+  ],
+  "orders": [
+    {
+      "id": "ORD-DE-3839",
+      "trackingNumber": "DE-UN3373-2026-3839",
+      "status": "SCHEDULED",
+      "transportType": "FROZEN_DRY_ICE",
+      "pickupClinicName": "Klinikum Kassel",
+      "pickupAddress": "Theodor-Stern-Kai 7, 60590 Frankfurt am Main",
+      "pickupDepartment": "Station 12B - Infektiologie",
+      "pickupContactPhone": "+49 69 6301 5120",
+      "deliveryLabName": "Biosammlungszentrum Hessen - Synlab",
+      "deliveryAddress": "Paul-Ehrlich-Straße 51, 60596 Frankfurt am Main",
+      "deliveryDepartment": "Trakt 4, Labor-Eingang C",
+      "deliveryContactPhone": "+49 69 7000 881",
+      "scheduledPickupFrom": "2026-09-11T17:22:34.997Z",
+      "scheduledPickupTo": "2026-09-11T18:22:34.997Z",
+      "scheduledDeliveryBy": "2026-09-11T20:22:34.997Z",
+      "sampleCategory": "UN 3373 Category B Biological Specimen",
+      "specimenBoxCount": 1,
+      "barcodeList": [
+        "SPEC-DE-3839-A"
+      ],
+      "specialNotes": "Standard P650 biological specimen box.",
+      "p650Verified": true,
+      "driverId": "USR-DRIVER-01",
+      "driverName": "Hans Schmidt (MediGo Kurier 104)",
+      "createdById": "USR-CLINIC-01",
+      "createdByOrg": "Universitätsklinikum Frankfurt am Main",
+      "vehicleRegNumber": "F-MG 7741 (Thermo Van)",
+      "createdAt": "2026-09-11T17:22:34.997Z",
+      "updatedAt": "2026-09-11T17:22:34.997Z",
+      "chainOfCustodyLogs": [],
+      "telemetryLogs": [],
+      "auditLogs": [
+        {
+          "id": "AUD-1789147354997",
+          "orderId": "ORD-DE-3839",
+          "previousState": null,
+          "newState": "SCHEDULED",
+          "actionDescription": "Order DE-UN3373-2026-3839 created and assigned to driver.",
+          "userId": "USR-CLINIC-01",
+          "userName": "Dr. Martin Hoffmann",
+          "userRole": "CLIENT_CLINIC",
+          "deviceId": "WEB-PORTAL-01",
+          "gpsLatitude": 50.1109,
+          "gpsLongitude": 8.6821,
+          "offlineSynced": true,
+          "createdAt": "2026-09-11T17:22:34.997Z"
+        }
+      ]
+    },
+    {
+      "id": "ORD-DE-8821",
+      "trackingNumber": "DE-UN3373-2026-8821",
+      "status": "SCHEDULED",
+      "transportType": "REFRIGERATED_2_8C",
+      "pickupClinicName": "Universitätsklinikum Frankfurt am Main",
+      "pickupAddress": "Theodor-Stern-Kai 7, 60590 Frankfurt am Main, Hessen",
+      "pickupDepartment": "Station 12B - Infektiologie & Virologie",
+      "pickupContactPhone": "+49 69 6301 5120",
+      "deliveryLabName": "Biosammlungszentrum Hessen - Synlab",
+      "deliveryAddress": "Paul-Ehrlich-Straße 51, 60596 Frankfurt am Main",
+      "deliveryDepartment": "Trakt 4, Labor-Eingang C",
+      "deliveryContactPhone": "+49 69 7000 881",
+      "scheduledPickupFrom": "2026-09-11T16:18:05.250Z",
+      "scheduledPickupTo": "2026-09-11T17:18:05.250Z",
+      "scheduledDeliveryBy": "2026-09-11T18:48:05.250Z",
+      "sampleCategory": "UN 3373 Biological Substance Cat B (Blood Serum Samples)",
+      "specimenBoxCount": 2,
+      "barcodeList": [
+        "SPEC-FRA-9901-A",
+        "SPEC-FRA-9901-B"
+      ],
+      "specialNotes": "MediGo Hessen express. P650 packaging checked. Keep upright at 2-8°C.",
+      "p650Verified": true,
+      "driverId": "USR-DRIVER-01",
+      "driverName": "Hans Schmidt (MediGo Kurier 104)",
+      "createdById": "USR-CLINIC-01",
+      "createdByOrg": "Universitätsklinikum Frankfurt",
+      "vehicleRegNumber": "F-MG 7741 (MediGo Hessen Thermo Van)",
+      "createdAt": "2026-09-11T16:03:05.250Z",
+      "updatedAt": "2026-09-11T16:38:05.250Z",
+      "chainOfCustodyLogs": [],
+      "telemetryLogs": [
+        {
+          "id": "TEL-001",
+          "orderId": "ORD-DE-8821",
+          "sensorId": "SENS-REFRIG-01",
+          "tempCelsius": 4.8,
+          "ambientTempCelsius": 21.2,
+          "humidityPercent": 52,
+          "batteryLevelPercent": 99,
+          "isBreach": false,
+          "timestamp": "2026-09-11T16:28:05.250Z",
+          "gpsLatitude": 50.0911,
+          "gpsLongitude": 8.6651
+        }
+      ],
+      "auditLogs": [
+        {
+          "id": "AUD-101",
+          "orderId": "ORD-DE-8821",
+          "previousState": null,
+          "newState": "SCHEDULED",
+          "actionDescription": "Order created by UK Frankfurt Clinic and assigned to MediGo Courier Hans Schmidt.",
+          "userId": "USR-CLINIC-01",
+          "userName": "Dr. Martin Hoffmann",
+          "userRole": "CLIENT_CLINIC",
+          "deviceId": "WEB-CLINIC-DESK-01",
+          "gpsLatitude": 50.0911,
+          "gpsLongitude": 8.6651,
+          "offlineSynced": true,
+          "createdAt": "2026-09-11T16:03:05.250Z"
+        }
+      ]
+    },
+    {
+      "id": "ORD-DE-8822",
+      "trackingNumber": "DE-UN3373-2026-8822",
+      "status": "IN_TRANSIT",
+      "transportType": "AMBIENT_15_25C",
+      "pickupClinicName": "Universitätsklinikum Gießen und Marburg (Location Marburg)",
+      "pickupAddress": "Baldingerstraße, 35043 Marburg, Hessen",
+      "pickupDepartment": "Station 3 - Hämatologie & Pathologie",
+      "pickupContactPhone": "+49 6421 5860",
+      "deliveryLabName": "Labor Dr. Risch Wiesbaden / Hessen Central",
+      "deliveryAddress": "Mainzer Straße 98, 65189 Wiesbaden, Hessen",
+      "deliveryDepartment": "Empfang Mikrobiologie",
+      "deliveryContactPhone": "+49 611 99120",
+      "scheduledPickupFrom": "2026-09-11T14:48:05.250Z",
+      "scheduledPickupTo": "2026-09-11T15:48:05.250Z",
+      "scheduledDeliveryBy": "2026-09-11T17:48:05.250Z",
+      "sampleCategory": "UN 3373 Category B (Tissue Biopsy Specimen)",
+      "specimenBoxCount": 1,
+      "barcodeList": [
+        "SPEC-MR-4412"
+      ],
+      "specialNotes": "MediGo Hessen express courier. Store in P650 ambient thermal container at 15-25°C.",
+      "p650Verified": true,
+      "driverId": "USR-DRIVER-01",
+      "driverName": "Hans Schmidt (MediGo Kurier 104)",
+      "createdById": "USR-DISPATCHER-01",
+      "createdByOrg": "MediGo Zentrale Hessen",
+      "vehicleRegNumber": "F-MG 7741 (MediGo Hessen Thermo Van)",
+      "createdAt": "2026-09-11T14:18:05.250Z",
+      "updatedAt": "2026-09-11T16:33:05.250Z",
+      "preTripCheck": {
+        "id": "PTC-8822",
+        "orderId": "ORD-DE-8822",
+        "driverId": "USR-DRIVER-01",
+        "vehicleRegNumber": "F-MG 7741 (MediGo Hessen Thermo Van)",
+        "p650OuterPackagingIntact": true,
+        "primarySecondaryLeakProof": true,
+        "absorbentMaterialPresent": true,
+        "tempBoxCalibrated": true,
+        "initialTempCelsius": 21,
+        "targetTempMinCelsius": 15,
+        "targetTempMaxCelsius": 25,
+        "inspectedAt": "2026-09-11T15:08:05.250Z",
+        "driverSignatureBase64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+        "approved": true
+      },
+      "chainOfCustodyLogs": [
+        {
+          "id": "COC-8822-PICKUP",
+          "orderId": "ORD-DE-8822",
+          "eventType": "PICKUP_SIGNATURE",
+          "staffName": "Schwester Elena Meyer",
+          "staffTitle": "Stationsleitung 3",
+          "signatureBase64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+          "pinCodeVerified": true,
+          "scannedBarcodes": [
+            "SPEC-MR-4412"
+          ],
+          "timestamp": "2026-09-11T15:23:05.250Z",
+          "gpsLatitude": 50.8021,
+          "gpsLongitude": 8.7712,
+          "gpsAccuracyMeters": 4.2,
+          "deviceId": "MOB-MEDIGO-104"
+        }
+      ],
+      "telemetryLogs": [
+        {
+          "id": "TEL-8822-01",
+          "orderId": "ORD-DE-8822",
+          "sensorId": "SENS-AMBIENT-01",
+          "tempCelsius": 20.8,
+          "ambientTempCelsius": 22,
+          "humidityPercent": 48,
+          "batteryLevelPercent": 95,
+          "isBreach": false,
+          "timestamp": "2026-09-11T15:38:05.250Z",
+          "gpsLatitude": 50.1109,
+          "gpsLongitude": 8.6821
+        },
+        {
+          "id": "TEL-8822-02",
+          "orderId": "ORD-DE-8822",
+          "sensorId": "SENS-AMBIENT-01",
+          "tempCelsius": 21.4,
+          "ambientTempCelsius": 23.1,
+          "humidityPercent": 50,
+          "batteryLevelPercent": 94,
+          "isBreach": false,
+          "timestamp": "2026-09-11T16:18:05.250Z",
+          "gpsLatitude": 50.115,
+          "gpsLongitude": 8.688
+        }
+      ],
+      "auditLogs": [
+        {
+          "id": "AUD-201",
+          "orderId": "ORD-DE-8822",
+          "previousState": "SCHEDULED",
+          "newState": "PRE_TRIP_CHECK",
+          "actionDescription": "MediGo driver completed mandatory P650 integrity and box temperature calibration.",
+          "userId": "USR-DRIVER-01",
+          "userName": "Hans Schmidt",
+          "userRole": "DRIVER",
+          "deviceId": "MOB-MEDIGO-104",
+          "gpsLatitude": 50.8021,
+          "gpsLongitude": 8.7712,
+          "offlineSynced": true,
+          "createdAt": "2026-09-11T15:08:05.250Z"
+        },
+        {
+          "id": "AUD-202",
+          "orderId": "ORD-DE-8822",
+          "previousState": "PRE_TRIP_CHECK",
+          "newState": "PICKED_UP",
+          "actionDescription": "Specimen SPEC-MR-4412 scanned. Signature captured from Schwester Elena Meyer at UK Marburg.",
+          "userId": "USR-DRIVER-01",
+          "userName": "Hans Schmidt",
+          "userRole": "DRIVER",
+          "deviceId": "MOB-MEDIGO-104",
+          "gpsLatitude": 50.8021,
+          "gpsLongitude": 8.7712,
+          "offlineSynced": true,
+          "createdAt": "2026-09-11T15:23:05.250Z"
+        },
+        {
+          "id": "AUD-203",
+          "orderId": "ORD-DE-8822",
+          "previousState": "PICKED_UP",
+          "newState": "IN_TRANSIT",
+          "actionDescription": "MediGo courier departed UK Marburg towards Wiesbaden lab. Live sensor telemetry active.",
+          "userId": "USR-DRIVER-01",
+          "userName": "Hans Schmidt",
+          "userRole": "DRIVER",
+          "deviceId": "MOB-MEDIGO-104",
+          "gpsLatitude": 50.8021,
+          "gpsLongitude": 8.7712,
+          "offlineSynced": true,
+          "createdAt": "2026-09-11T15:28:05.250Z"
+        }
+      ]
+    },
+    {
+      "id": "ORD-DE-8823",
+      "trackingNumber": "DE-UN3373-2026-8823",
+      "status": "DELIVERED",
+      "transportType": "FROZEN_MINUS_20C",
+      "pickupClinicName": "Klinikum Kassel GmbH (Hessen Nord)",
+      "pickupAddress": "Mönchebergstraße 41, 34125 Kassel, Hessen",
+      "pickupDepartment": "Zentralinstitut für Laboratoriumsmedizin",
+      "pickupContactPhone": "+49 561 9800",
+      "deliveryLabName": "Biosammlungszentrum Hessen - Frankfurt Hub",
+      "deliveryAddress": "Paul-Ehrlich-Straße 51, 60596 Frankfurt am Main",
+      "deliveryDepartment": "Kryo-Labor - Eingang B",
+      "deliveryContactPhone": "+49 69 7000 88",
+      "scheduledPickupFrom": "2026-09-11T12:48:05.250Z",
+      "scheduledPickupTo": "2026-09-11T13:48:05.250Z",
+      "scheduledDeliveryBy": "2026-09-11T15:48:05.250Z",
+      "sampleCategory": "UN 3373 Cryo-Preserved Viral RNA Swabs",
+      "specimenBoxCount": 3,
+      "barcodeList": [
+        "SPEC-KS-101-A",
+        "SPEC-KS-101-B",
+        "SPEC-KS-101-C"
+      ],
+      "specialNotes": "Dry Ice Transport via MediGo Express A5 Kassel-Frankfurt corridor.",
+      "p650Verified": true,
+      "driverId": "USR-DRIVER-01",
+      "driverName": "Hans Schmidt (MediGo Kurier 104)",
+      "createdById": "USR-DISPATCHER-01",
+      "createdByOrg": "MediGo Zentrale Hessen",
+      "vehicleRegNumber": "F-MG 7741 (MediGo Hessen Thermo Van)",
+      "createdAt": "2026-09-11T11:48:05.250Z",
+      "updatedAt": "2026-09-11T15:58:05.250Z",
+      "chainOfCustodyLogs": [
+        {
+          "id": "COC-8823-PICKUP",
+          "orderId": "ORD-DE-8823",
+          "eventType": "PICKUP_SIGNATURE",
+          "staffName": "Dr. Michael Wagner",
+          "staffTitle": "Klinikum Kassel Labor",
+          "signatureBase64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+          "pinCodeVerified": true,
+          "scannedBarcodes": [
+            "SPEC-KS-101-A",
+            "SPEC-KS-101-B",
+            "SPEC-KS-101-C"
+          ],
+          "timestamp": "2026-09-11T13:38:05.250Z",
+          "gpsLatitude": 51.3201,
+          "gpsLongitude": 9.5011,
+          "gpsAccuracyMeters": 3.5,
+          "deviceId": "MOB-MEDIGO-104"
+        },
+        {
+          "id": "COC-8823-DELIVERY",
+          "orderId": "ORD-DE-8823",
+          "eventType": "DELIVERY_SIGNATURE",
+          "staffName": "Sabine Neumann",
+          "staffTitle": "Laborleitung Kryo Frankfurt",
+          "signatureBase64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+          "pinCodeVerified": true,
+          "scannedBarcodes": [
+            "SPEC-KS-101-A",
+            "SPEC-KS-101-B",
+            "SPEC-KS-101-C"
+          ],
+          "timestamp": "2026-09-11T15:58:05.250Z",
+          "gpsLatitude": 50.098,
+          "gpsLongitude": 8.672,
+          "gpsAccuracyMeters": 2.8,
+          "deviceId": "MOB-MEDIGO-104"
+        }
+      ],
+      "telemetryLogs": [
+        {
+          "id": "TEL-8823-01",
+          "orderId": "ORD-DE-8823",
+          "sensorId": "SENS-CRYO-02",
+          "tempCelsius": -22.4,
+          "ambientTempCelsius": 21,
+          "humidityPercent": 40,
+          "batteryLevelPercent": 92,
+          "isBreach": false,
+          "timestamp": "2026-09-11T14:18:05.250Z",
+          "gpsLatitude": 50.095,
+          "gpsLongitude": 8.668
+        }
+      ],
+      "auditLogs": [
+        {
+          "id": "AUD-301",
+          "orderId": "ORD-DE-8823",
+          "previousState": "IN_TRANSIT",
+          "newState": "DELIVERED",
+          "actionDescription": "Handover complete at Biosammlungszentrum Frankfurt. Lab signature verified by Sabine Neumann.",
+          "userId": "USR-DRIVER-01",
+          "userName": "Hans Schmidt",
+          "userRole": "DRIVER",
+          "deviceId": "MOB-MEDIGO-104",
+          "gpsLatitude": 50.098,
+          "gpsLongitude": 8.672,
+          "offlineSynced": true,
+          "createdAt": "2026-09-11T15:58:05.250Z"
+        }
+      ]
+    }
+  ],
+  "auditLogs": []
+}

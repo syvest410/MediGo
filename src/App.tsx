@@ -25,6 +25,8 @@ import { LoginPortalModal } from './components/Auth/LoginPortalModal';
 import { HomePageLanding } from './components/Auth/HomePageLanding';
 import { UnauthorizedShield } from './components/Security/UnauthorizedShield';
 import { SecurityAuditModal } from './components/Security/SecurityAuditModal';
+import { UserManagementModal } from './components/AdminDashboard/UserManagementModal';
+import { useAuth } from './context/AuthContext';
 
 import { Order, Role, OrderStatus, TemperatureTelemetry, User } from './types';
 import { INITIAL_ORDERS, INITIAL_USERS } from './lib/db';
@@ -33,6 +35,7 @@ import { tempSimulator } from './lib/temperatureSimulator';
 import { emailForwardingStore } from './lib/emailForwardingStore';
 
 export default function App() {
+  const { currentUser: authUser, isAuthenticated: authIsLoggedIn, logout, dbStatus, refreshDbStatus } = useAuth();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
@@ -48,7 +51,24 @@ export default function App() {
   const [isTempGuideOpen, setIsTempGuideOpen] = useState<boolean>(false);
   const [isMobileInstallOpen, setIsMobileInstallOpen] = useState<boolean>(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
+  const [isUserManagementOpen, setIsUserManagementOpen] = useState<boolean>(false);
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState<boolean>(false);
+
+  // Sync auth state from AuthContext
+  useEffect(() => {
+    if (authUser) {
+      setCurrentUser(authUser);
+      setActiveRole(authUser.role);
+      setIsAuthenticated(true);
+      if (authUser.role === 'CLIENT_CLINIC') {
+        setViewMode('CLIENT_PORTAL');
+      } else if (authUser.role === 'DRIVER') {
+        setViewMode('DRIVER_MOBILE');
+      } else if (authUser.role === 'ADMIN' || authUser.role === 'DISPATCHER') {
+        setViewMode('DISPATCH_DASHBOARD');
+      }
+    }
+  }, [authUser]);
 
   // Visual Theme State (Defaults to Daylight Ops Mode "Feels Alive")
   const [isNightShift, setIsNightShift] = useState<boolean>(false);
@@ -268,7 +288,12 @@ export default function App() {
         onOpenTempGuide={() => setIsTempGuideOpen(true)}
         onOpenMobileInstall={() => setIsMobileInstallOpen(true)}
         onOpenLoginPortal={() => setIsLoginModalOpen(true)}
-        onLogout={() => setIsAuthenticated(false)}
+        onOpenUserManagement={() => setIsUserManagementOpen(true)}
+        dbStatus={dbStatus}
+        onLogout={() => {
+          logout();
+          setIsAuthenticated(false);
+        }}
         isNightShift={isNightShift}
         onToggleNightShift={handleToggleNightShift}
       />
@@ -578,6 +603,15 @@ export default function App() {
           } else {
             setViewMode('DISPATCH_DASHBOARD');
           }
+        }}
+      />
+
+      {/* Admin User & Contract Numbers Management Modal */}
+      <UserManagementModal
+        isOpen={isUserManagementOpen}
+        onClose={() => {
+          setIsUserManagementOpen(false);
+          refreshDbStatus();
         }}
       />
 

@@ -67,6 +67,30 @@ export interface User {
   role: Role;
   phone?: string;
   organization?: string;
+  contractNumber?: string; // Required for Clinics & Laboratories
+  facilityType?: 'CLINIC' | 'LABORATORY' | 'HQ' | 'COURIER';
+  facilityAddress?: string;
+  vehicleRegNumber?: string; // For Driver accounts
+  active?: boolean;
+  createdAt?: string;
+}
+
+export interface AuthSession {
+  user: User;
+  token: string;
+}
+
+export interface CreateUserPayload {
+  email: string;
+  password: string;
+  name: string;
+  role: Role;
+  phone?: string;
+  organization?: string;
+  contractNumber?: string;
+  facilityType?: 'CLINIC' | 'LABORATORY' | 'HQ' | 'COURIER';
+  facilityAddress?: string;
+  vehicleRegNumber?: string;
 }
 
 export interface PreTripCheck {

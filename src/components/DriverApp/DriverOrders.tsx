@@ -6,6 +6,7 @@ import { SignaturePadModal } from './SignaturePadModal';
 import { CancellationModal } from './CancellationModal';
 import { EmergencySoloDispatchModal } from '../AdminDashboard/EmergencySoloDispatchModal';
 import { OrderQRCodeModal } from '../AdminDashboard/OrderQRCodeModal';
+import { PDFPreviewModal } from '../AdminDashboard/PDFPreviewModal';
 import { DriverJobBoard } from './DriverJobBoard';
 import { generateChainOfCustodyPDF } from '../../lib/pdfGenerator';
 import { tempSimulator } from '../../lib/temperatureSimulator';
@@ -24,7 +25,8 @@ import {
   XCircle,
   ShieldAlert,
   ArrowRight,
-  UserCheck
+  UserCheck,
+  Eye
 } from 'lucide-react';
 
 interface DriverOrdersProps {
@@ -55,6 +57,7 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
   const [tempScannedBarcodes, setTempScannedBarcodes] = useState<string[]>([]);
   const [isQRModalOpen, setIsQRModalOpen] = useState<boolean>(false);
   const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState<boolean>(false);
+  const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState<boolean>(false);
 
   // Filter orders assigned to driver
   const driverOrders = orders;
@@ -349,13 +352,23 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
                   <span className="text-[11px] text-emerald-300">Handover verified at laboratory</span>
                 </div>
 
-                <button
-                  onClick={() => generateChainOfCustodyPDF(currentOrder)}
-                  className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold py-2.5 px-4 rounded-xl flex items-center justify-center space-x-2 transition-all"
-                >
-                  <Download className="w-4 h-4 text-emerald-400" />
-                  <span>Download Chain of Custody PDF</span>
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setIsPdfPreviewOpen(true)}
+                    className="bg-cyan-950 hover:bg-cyan-900 border border-cyan-800 text-cyan-300 font-bold py-2.5 px-3 rounded-xl flex items-center justify-center space-x-1.5 text-xs transition-all shadow-sm"
+                  >
+                    <Eye className="w-4 h-4 text-cyan-400" />
+                    <span>View Certificate</span>
+                  </button>
+
+                  <button
+                    onClick={() => generateChainOfCustodyPDF(currentOrder)}
+                    className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold py-2.5 px-3 rounded-xl flex items-center justify-center space-x-1.5 text-xs transition-all"
+                  >
+                    <Download className="w-4 h-4 text-emerald-400" />
+                    <span>Download PDF</span>
+                  </button>
+                </div>
               </div>
             )}
 
@@ -478,6 +491,12 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
             onClose={() => setIsEmergencyModalOpen(false)}
             order={currentOrder}
             driverGpsCoords={{ lat: 50.8021, lng: 8.7712 }}
+          />
+
+          <PDFPreviewModal
+            isOpen={isPdfPreviewOpen}
+            onClose={() => setIsPdfPreviewOpen(false)}
+            order={currentOrder}
           />
         </>
       )}

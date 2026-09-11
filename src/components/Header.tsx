@@ -26,9 +26,13 @@ import {
   Moon,
   Sparkles,
   Globe,
-  MapPin
+  MapPin,
+  Users,
+  Database,
+  Crown
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { DatabaseStatus } from '../context/AuthContext';
 
 interface HeaderProps {
   activeRole: Role;
@@ -44,6 +48,8 @@ interface HeaderProps {
   onOpenTempGuide?: () => void;
   onOpenMobileInstall?: () => void;
   onOpenLoginPortal?: () => void;
+  onOpenUserManagement?: () => void;
+  dbStatus?: DatabaseStatus | null;
   onLogout?: () => void;
   isNightShift?: boolean;
   onToggleNightShift?: () => void;
@@ -63,6 +69,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenTempGuide,
   onOpenMobileInstall,
   onOpenLoginPortal,
+  onOpenUserManagement,
+  dbStatus,
   onLogout,
   isNightShift = false,
   onToggleNightShift,
@@ -190,6 +198,50 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </button>
 
+            {/* Database Status Indicator */}
+            {dbStatus && (
+              <button
+                onClick={onOpenUserManagement}
+                className={`hidden xl:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border text-xs min-h-[36px] font-mono transition-all ${
+                  dbStatus.tablesCreated
+                    ? 'bg-emerald-950/80 hover:bg-emerald-900/80 border-emerald-700 text-emerald-300'
+                    : dbStatus.supabaseConfigured
+                    ? 'bg-amber-950/80 hover:bg-amber-900/80 border-amber-700 text-amber-300 animate-pulse'
+                    : 'bg-slate-800/80 hover:bg-slate-750 border-slate-700 text-slate-300'
+                }`}
+                title={
+                  dbStatus.tablesCreated
+                    ? 'Supabase PostgreSQL connected & tables active. Click to manage.'
+                    : dbStatus.supabaseConfigured
+                    ? 'Supabase connected but tables are not created yet! Click to view SQL schema.'
+                    : 'Local Persistent Server Storage active. Click to configure Supabase.'
+                }
+              >
+                <Database className={`w-3.5 h-3.5 ${
+                  dbStatus.tablesCreated ? 'text-emerald-400' : dbStatus.supabaseConfigured ? 'text-amber-400' : 'text-cyan-400'
+                }`} />
+                <span className="text-[11px] font-bold">
+                  {dbStatus.tablesCreated
+                    ? 'Supabase DB'
+                    : dbStatus.supabaseConfigured
+                    ? 'Supabase (Run SQL)'
+                    : 'Server DB'}
+                </span>
+              </button>
+            )}
+
+            {/* Admin User & Contract Management (ADMIN / DISPATCHER) */}
+            {onOpenUserManagement && (currentUser?.role === 'ADMIN' || currentUser?.role === 'DISPATCHER') && (
+              <button
+                onClick={onOpenUserManagement}
+                className="bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-cyan-300 font-bold px-3 py-1.5 rounded-lg flex items-center space-x-1.5 text-xs transition-all shadow-md min-h-[36px]"
+                title="Admin User Management: Create Users & Assign Authorized Contract Numbers"
+              >
+                <Users className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Users & Contracts</span>
+              </button>
+            )}
+
             {/* Role Switcher (STRICT RBAC: CEO / DISPATCHER ONLY) */}
             {onOpenLoginPortal && (currentUser?.role === 'DISPATCHER' || currentUser?.role === 'ADMIN') && (
               <button
@@ -205,11 +257,20 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Current User Badge */}
             {currentUser && (
               <div className="flex items-center space-x-2 bg-slate-800/90 px-2.5 py-1.5 rounded-lg border border-slate-700 text-xs min-h-[36px]">
-                <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+                {currentUser.role === 'ADMIN' ? (
+                  <Crown className="w-3.5 h-3.5 text-amber-400" />
+                ) : (
+                  <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+                )}
                 <span className="font-bold text-white max-w-[110px] truncate">{currentUser.name}</span>
                 <span className="text-[10px] text-slate-300 bg-slate-950 px-1.5 py-0.5 rounded font-bold uppercase">
                   {currentUser.role}
                 </span>
+                {currentUser.contractNumber && (
+                  <span className="text-[10px] text-emerald-300 bg-emerald-950 border border-emerald-800 px-1.5 py-0.5 rounded font-mono font-bold" title="Authorized Contract Number">
+                    {currentUser.contractNumber}
+                  </span>
+                )}
               </div>
             )}
 
@@ -639,6 +700,23 @@ export const Header: React.FC<HeaderProps> = ({
                   {isOffline ? 'OFFLINE' : 'ONLINE'}
                 </span>
               </button>
+
+              {/* Admin Users & Contracts Management */}
+              {onOpenUserManagement && (currentUser?.role === 'ADMIN' || currentUser?.role === 'DISPATCHER') && (
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onOpenUserManagement();
+                  }}
+                  className="w-full bg-cyan-950 border border-cyan-700 text-cyan-200 p-3 rounded-xl font-bold flex items-center justify-between min-h-[44px]"
+                >
+                  <div className="flex items-center space-x-2">
+                    <Users className="w-4 h-4 text-cyan-400" />
+                    <span>Manage Users & Contract Numbers</span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-cyan-500" />
+                </button>
+              )}
 
               {/* Mobile App PWA & Native Export */}
               {onOpenMobileInstall && (
