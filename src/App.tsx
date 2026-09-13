@@ -3,7 +3,7 @@
  * BioDispatch DE - UN 3373 Category B Medical Courier Dispatch & Tracking Application
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { OfflineBanner } from './components/OfflineBanner';
 import { DriverOrders } from './components/DriverApp/DriverOrders';
@@ -35,7 +35,7 @@ import { tempSimulator } from './lib/temperatureSimulator';
 import { emailForwardingStore } from './lib/emailForwardingStore';
 
 export default function App() {
-  const { currentUser: authUser, isAuthenticated: authIsLoggedIn, logout, dbStatus, refreshDbStatus } = useAuth();
+  const { currentUser: authUser, token, isAuthenticated: authIsLoggedIn, logout, dbStatus, refreshDbStatus } = useAuth();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
@@ -113,18 +113,29 @@ export default function App() {
     setActiveBreachesCount(breaches);
   }, [orders]);
 
-  // Fetch initial orders from server API
-  useEffect(() => {
-    fetch('/api/orders')
-      .then(res => res.json())
-      .then(data => {
+  // Fetch initial orders from server API (Scoped under Principle of Least Privilege)
+  const fetchOrders = useCallback(async () => {
+    try {
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const res = await fetch('/api/orders', { headers });
+      if (res.ok) {
+        const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
           setOrders(data);
-          setSelectedOrder(data[0]);
+          setSelectedOrder(prev => (prev ? data.find(o => o.id === prev.id) || data[0] : data[0]));
         }
-      })
-      .catch(err => console.log('Using local client database:', err));
-  }, []);
+      }
+    } catch (err) {
+      console.log('Using local client database:', err);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
 
   // Handle State Machine Transition
   const handleTransitionOrder = async (
@@ -152,14 +163,18 @@ export default function App() {
     }
 
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
       const res = await fetch(`/api/orders/${orderId}/transition`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           targetStatus,
           context,
-          userId: 'USR-DRIVER-01',
-          userName: 'Hans Schmidt',
+          userId: currentUser?.id || 'USR-DRIVER-01',
+          userName: currentUser?.name || 'Hans Schmidt',
           userRole: activeRole,
           deviceId: 'MOB-DRIVER-104',
           coords
@@ -195,9 +210,13 @@ export default function App() {
   // Handle Order Creation
   const handleCreateOrder = async (newOrderData: any) => {
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
       const res = await fetch('/api/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(newOrderData)
       });
       if (res.ok) {
@@ -213,23 +232,38 @@ export default function App() {
   // Manual Sync
   const handleManualSync = async () => {
     await offlineQueue.syncQueue();
-    // Refresh orders
-    fetch('/api/orders')
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) setOrders(data);
-      });
+    fetchOrders();
   };
 
   // Handle Driver Claiming an Open Order
-  const handleClaimOrder = (orderId: string) => {
+  const handleClaimOrder = async (orderId: string) => {
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const res = await fetch(`/api/orders/${orderId}/claim`, {
+        method: 'POST',
+        headers,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.order) {
+          setOrders(prev => prev.map(o => o.id === orderId ? data.order : o));
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('Network error while claiming order:', err);
+    }
+
     setOrders(prev => prev.map(o => {
       if (o.id === orderId) {
         return {
           ...o,
-          driverId: 'USR-DRIVER-01',
-          driverName: 'Hans Schmidt (CEO/Driver)',
-          vehicleRegNumber: 'B-BD 7741',
+          driverId: currentUser?.id || 'USR-DRIVER-01',
+          driverName: currentUser?.name || 'Hans Schmidt (CEO/Driver)',
+          vehicleRegNumber: currentUser?.vehicleRegNumber || 'F-MG 7741',
           updatedAt: new Date().toISOString()
         };
       }

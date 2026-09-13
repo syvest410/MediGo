@@ -94,12 +94,24 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
           Authorization: `Bearer ${token}`,
         },
       });
+
+      const text = await res.text();
+      let parsed: any = null;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        // Response was not JSON (e.g. Vercel text error)
+      }
+
       if (res.ok) {
-        const data = await res.json();
-        setUsers(data);
+        if (Array.isArray(parsed)) {
+          setUsers(parsed);
+        } else {
+          setUsers([]);
+        }
       } else {
-        const err = await res.json();
-        setErrorMsg(err.message || 'Failed to load users');
+        const errorMsg = parsed?.message || text || `Server error (${res.status})`;
+        setErrorMsg(errorMsg);
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Error fetching user directory');
@@ -163,14 +175,20 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
         }),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = null;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        // Not JSON
+      }
 
       if (!res.ok) {
-        setErrorMsg(data.message || 'Failed to create user');
+        setErrorMsg(data?.message || text || `Server error (${res.status})`);
         return;
       }
 
-      setSuccessMsg(`User ${data.user.name} was successfully registered and saved.`);
+      setSuccessMsg(`User ${data?.user?.name || name} was successfully registered and saved.`);
       setCreatedCredentials({
         email,
         password,
@@ -228,8 +246,14 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
       if (res.ok) {
         fetchUsers();
       } else {
-        const data = await res.json();
-        alert(data.message || 'Could not delete user');
+        const text = await res.text();
+        let data: any = null;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          // Not JSON
+        }
+        alert(data?.message || text || 'Could not delete user');
       }
     } catch (err) {
       console.error('Failed to delete user:', err);

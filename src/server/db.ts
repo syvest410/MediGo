@@ -396,18 +396,39 @@ class DatabaseService {
 
   // --- ORDER OPERATIONS ---
 
-  public async getOrders(userRole?: Role, userOrganization?: string, driverId?: string): Promise<Order[]> {
+  public async getOrders(userRole?: Role, userOrganization?: string, driverId?: string, userId?: string, contractNumber?: string): Promise<Order[]> {
     let list = [...this.state.orders];
 
-    // Role-based data isolation
-    if (userRole === 'CLIENT_CLINIC' && userOrganization) {
-      const orgLower = userOrganization.toLowerCase();
-      list = list.filter(o => o.pickupClinicName.toLowerCase().includes(orgLower) || o.createdByOrg?.toLowerCase().includes(orgLower));
-    } else if (userRole === 'LAB_STAFF' && userOrganization) {
-      const orgLower = userOrganization.toLowerCase();
-      list = list.filter(o => o.deliveryLabName.toLowerCase().includes(orgLower));
-    } else if (userRole === 'DRIVER' && driverId) {
-      list = list.filter(o => o.driverId === driverId || o.status === 'SCHEDULED');
+    // Role-based data isolation enforcing Principle of Least Privilege
+    if (userRole === 'CLIENT_CLINIC') {
+      const orgLower = (userOrganization || '').toLowerCase().trim();
+      const contractLower = (contractNumber || '').toLowerCase().trim();
+      list = list.filter(o => {
+        const orgMatch = Boolean(orgLower && (
+          o.pickupClinicName.toLowerCase().includes(orgLower) ||
+          (o.createdByOrg && o.createdByOrg.toLowerCase().includes(orgLower))
+        ));
+        const userMatch = Boolean(userId && o.createdById === userId);
+        const contractMatch = Boolean(contractLower && (
+          o.trackingNumber.toLowerCase().includes(contractLower) ||
+          (o.specialNotes && o.specialNotes.toLowerCase().includes(contractLower))
+        ));
+        return orgMatch || userMatch || contractMatch;
+      });
+    } else if (userRole === 'LAB_STAFF') {
+      const orgLower = (userOrganization || '').toLowerCase().trim();
+      const contractLower = (contractNumber || '').toLowerCase().trim();
+      list = list.filter(o => {
+        const labMatch = Boolean(orgLower && o.deliveryLabName.toLowerCase().includes(orgLower));
+        const contractMatch = Boolean(contractLower && (
+          o.trackingNumber.toLowerCase().includes(contractLower) ||
+          (o.specialNotes && o.specialNotes.toLowerCase().includes(contractLower))
+        ));
+        return labMatch || contractMatch;
+      });
+    } else if (userRole === 'DRIVER') {
+      // Drivers can only see their assigned orders or open unassigned SCHEDULED orders on the marketplace
+      list = list.filter(o => o.driverId === driverId || (!o.driverId && o.status === 'SCHEDULED'));
     }
 
     return list;

@@ -80,6 +80,78 @@ export function requireAdmin(req: AuthenticatedRequest, res: Response, next: Nex
   });
 }
 
+/**
+ * Enforces Principle of Least Privilege: only allowed roles may access the route.
+ */
+export function requireRole(...allowedRoles: Role[]) {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    requireAuth(req, res, () => {
+      if (!req.user || !allowedRoles.includes(req.user.role)) {
+        return res.status(403).json({
+          message: `Forbidden: Least Privilege violation. Role '${req.user?.role || 'ANONYMOUS'}' does not have permission to perform this action. Required role(s): ${allowedRoles.join(', ')}.`,
+          userRole: req.user?.role,
+          requiredRoles: allowedRoles,
+        });
+      }
+      next();
+    });
+  };
+}
+
+// Brute-force & Credential Stuffing Protection (Least Privilege login principle)
+interface RateLimitRecord {
+  attempts: number;
+  firstAttempt: number;
+  lockedUntil?: number;
+}
+
+const loginAttempts = new Map<string, RateLimitRecord>();
+const MAX_FAILED_ATTEMPTS = 5;
+const WINDOW_MS = 15 * 60 * 1000; // 15 minutes window
+const LOCKOUT_MS = 5 * 60 * 1000; // 5 minutes lockout
+
+export function checkLoginRateLimit(identifier: string): { allowed: boolean; remainingLockoutSeconds?: number } {
+  const key = identifier.toLowerCase().trim();
+  const record = loginAttempts.get(key);
+  if (!record) return { allowed: true };
+
+  const now = Date.now();
+  if (record.lockedUntil && now < record.lockedUntil) {
+    const remaining = Math.ceil((record.lockedUntil - now) / 1000);
+    return { allowed: false, remainingLockoutSeconds: remaining };
+  }
+
+  // Reset if window has elapsed
+  if (now - record.firstAttempt > WINDOW_MS) {
+    loginAttempts.delete(key);
+    return { allowed: true };
+  }
+
+  return { allowed: true };
+}
+
+export function recordFailedLogin(identifier: string): { attemptsLeft: number; locked: boolean } {
+  const key = identifier.toLowerCase().trim();
+  const now = Date.now();
+  const record = loginAttempts.get(key) || { attempts: 0, firstAttempt: now };
+
+  record.attempts += 1;
+
+  if (record.attempts >= MAX_FAILED_ATTEMPTS) {
+    record.lockedUntil = now + LOCKOUT_MS;
+    loginAttempts.set(key, record);
+    return { attemptsLeft: 0, locked: true };
+  }
+
+  loginAttempts.set(key, record);
+  return { attemptsLeft: MAX_FAILED_ATTEMPTS - record.attempts, locked: false };
+}
+
+export function resetFailedLogin(identifier: string) {
+  const key = identifier.toLowerCase().trim();
+  loginAttempts.delete(key);
+}
+
 export function optionalAuth(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
