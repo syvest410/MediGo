@@ -1,23 +1,57 @@
 -- ====================================================================
--- MediGo Hessen / BioDispatch UN 3373 - Supabase PostgreSQL Schema
--- Run this complete script in your Supabase Dashboard:
--- 1. Log in to https://supabase.com/dashboard
--- 2. Open your project (fbjlpflbzhphrylixkjs)
--- 3. Click "SQL Editor" on the left navigation
--- 4. Click "+ New query", paste this entire script, and click "Run" (Ctrl+Enter)
+-- MediGo v3 Architecture - Non-Destructive Supabase PostgreSQL Schema
+-- Compliance: ApBetrO § 17, ADR P650, GDPR Art. 9/28, eIDAS Cryptography
+-- NOTE: Safe & Non-Destructive. Preserves all existing tables and data.
 -- ====================================================================
 
--- 1. Create Users Table with Role-Based Access and Contract Number validation
+-- 1. Create Organizations Table (Polymorphic Organization Schema)
+CREATE TABLE IF NOT EXISTS public.organizations (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('HOSPITAL', 'CLINIC', 'PHARMACY', 'CARE_HOME', 'LABORATORY', 'INDIVIDUAL_PATIENT')),
+  contract_number TEXT UNIQUE,
+  address_street TEXT NOT NULL,
+  postal_code TEXT NOT NULL,
+  city TEXT NOT NULL,
+  state TEXT DEFAULT 'HE' NOT NULL,
+  contact_phone TEXT NOT NULL,
+  contact_email TEXT NOT NULL,
+  active BOOLEAN DEFAULT TRUE NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_organizations_type ON public.organizations(type);
+CREATE INDEX IF NOT EXISTS idx_organizations_city ON public.organizations(city);
+
+-- 2. Create Retention Policies Table (GDPR Art. 9 / ApBetrO § 17 Legal Basis)
+CREATE TABLE IF NOT EXISTS public.retention_policies (
+  id TEXT PRIMARY KEY,
+  code TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  retention_period_days INT DEFAULT 1825 NOT NULL, -- 5 Years
+  legal_basis TEXT NOT NULL,
+  anonymize_instead_of_delete BOOLEAN DEFAULT TRUE NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+INSERT INTO public.retention_policies (id, code, name, retention_period_days, legal_basis, anonymize_instead_of_delete)
+VALUES
+  ('RET-APBETRO-5Y', 'APBETRO_SEC17_5YR', 'ApBetrO § 17 Statutory 5-Year Documentation', 1825, 'ApBetrO § 17 Abs. 2 / DSGVO Art. 6 Abs. 1 lit. c', TRUE),
+  ('RET-GDPR-ART9-ANON', 'GDPR_ART9_ANONYMIZED', 'GDPR Art. 9 Health Data Pseudonymization', 365, 'DSGVO Art. 9 Abs. 2 lit. h / BDSG § 22', TRUE)
+ON CONFLICT (code) DO NOTHING;
+
+-- 3. Update Users Table (Preserving all existing records while adding v3 fields)
 CREATE TABLE IF NOT EXISTS public.users (
   id TEXT PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('ADMIN', 'DISPATCHER', 'DRIVER', 'CLIENT_CLINIC', 'LAB_STAFF')),
+  role TEXT NOT NULL,
   password_hash TEXT NOT NULL,
   phone TEXT,
   organization TEXT,
   contract_number TEXT,
-  facility_type TEXT CHECK (facility_type IN ('CLINIC', 'LABORATORY', 'HQ', 'COURIER')),
+  facility_type TEXT,
   facility_address TEXT,
   vehicle_reg_number TEXT,
   active BOOLEAN DEFAULT TRUE NOT NULL,
@@ -25,27 +59,20 @@ CREATE TABLE IF NOT EXISTS public.users (
   updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
--- Constraint: Clinics & Labs must provide a contracted account identifier
-ALTER TABLE public.users 
-  DROP CONSTRAINT IF EXISTS check_contract_number_for_facilities;
+-- Safely add missing columns to users without dropping data
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS organization_id TEXT REFERENCES public.organizations(id) ON DELETE SET NULL;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS pin_code_hash TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS device_public_key TEXT;
 
-ALTER TABLE public.users
-  ADD CONSTRAINT check_contract_number_for_facilities
-  CHECK (
-    (role NOT IN ('CLIENT_CLINIC', 'LAB_STAFF')) OR 
-    (contract_number IS NOT NULL AND LENGTH(TRIM(contract_number)) > 0)
-  );
-
--- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(email);
 CREATE INDEX IF NOT EXISTS idx_users_role ON public.users(role);
-CREATE INDEX IF NOT EXISTS idx_users_contract ON public.users(contract_number);
+CREATE INDEX IF NOT EXISTS idx_users_org_id ON public.users(organization_id);
 
--- 2. Create Orders Table with JSONB payload for UN 3373 compliance audit trail
+-- 4. Update Orders Table (Dual Relations & State Machine Extension)
 CREATE TABLE IF NOT EXISTS public.orders (
   id TEXT PRIMARY KEY,
   tracking_number TEXT UNIQUE NOT NULL,
-  status TEXT NOT NULL CHECK (status IN ('SCHEDULED', 'PRE_TRIP_CHECK', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED')),
+  status TEXT NOT NULL,
   transport_type TEXT NOT NULL,
   pickup_clinic_name TEXT NOT NULL,
   pickup_address TEXT NOT NULL,
@@ -60,11 +87,28 @@ CREATE TABLE IF NOT EXISTS public.orders (
   updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_orders_status ON public.orders(status);
-CREATE INDEX IF NOT EXISTS idx_orders_driver ON public.orders(driver_id);
-CREATE INDEX IF NOT EXISTS idx_orders_tracking ON public.orders(tracking_number);
+-- Safely add missing columns to orders without dropping data
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS origin_organization_id TEXT REFERENCES public.organizations(id) ON DELETE SET NULL;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS destination_org_id TEXT REFERENCES public.organizations(id) ON DELETE SET NULL;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS public_access_token TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS specimen_category TEXT DEFAULT 'UN3373_CATEGORY_B_SPECIMEN';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS quarantine_reason TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS retention_policy_id TEXT REFERENCES public.retention_policies(id) ON DELETE SET NULL;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS retention_expires_at TIMESTAMPTZ;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS anonymized_at TIMESTAMPTZ;
 
--- 3. Create Audit Logs Table for ADR / eIDAS compliance
+-- Update status constraint to include QUARANTINED_UNSYNCED
+ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_status_check;
+ALTER TABLE public.orders 
+  ADD CONSTRAINT orders_status_check 
+  CHECK (status IN ('SCHEDULED', 'PRE_TRIP_CHECK', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED', 'QUARANTINED_UNSYNCED', 'CANCELLED'));
+
+CREATE INDEX IF NOT EXISTS idx_orders_status ON public.orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_origin_org ON public.orders(origin_organization_id);
+CREATE INDEX IF NOT EXISTS idx_orders_dest_org ON public.orders(destination_org_id);
+CREATE INDEX IF NOT EXISTS idx_orders_public_token ON public.orders(public_access_token);
+
+-- 5. Audit Logs Table (Conflict Resolution & eIDAS Compliance)
 CREATE TABLE IF NOT EXISTS public.audit_logs (
   id TEXT PRIMARY KEY,
   order_id TEXT,
@@ -73,147 +117,62 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
   performed_by_name TEXT,
   performed_by_role TEXT,
   details JSONB NOT NULL,
+  conflict_resolution TEXT DEFAULT 'NONE',
   timestamp TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
+
+ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS conflict_resolution TEXT DEFAULT 'NONE';
 
 CREATE INDEX IF NOT EXISTS idx_audit_logs_order ON public.audit_logs(order_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_time ON public.audit_logs(timestamp DESC);
 
--- 4. Enable access for REST API (Disable RLS or grant access so service role & app can operate)
-ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.orders DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.audit_logs DISABLE ROW LEVEL SECURITY;
+-- 6. Enable Row Level Security (RLS) for GDPR/UN 3373 Compliance
+-- The backend uses the Supabase service_role key which automatically bypasses RLS,
+-- while unauthorized public direct requests via anon keys are strictly blocked.
+ALTER TABLE public.organizations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.retention_policies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
-GRANT ALL ON public.users TO postgres, anon, authenticated, service_role;
-GRANT ALL ON public.orders TO postgres, anon, authenticated, service_role;
-GRANT ALL ON public.audit_logs TO postgres, anon, authenticated, service_role;
+-- Allow full access to the service_role key (used by MediGo server backend)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'service_role_full_access_organizations') THEN
+    CREATE POLICY service_role_full_access_organizations ON public.organizations FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'service_role_full_access_retention') THEN
+    CREATE POLICY service_role_full_access_retention ON public.retention_policies FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'service_role_full_access_users') THEN
+    CREATE POLICY service_role_full_access_users ON public.users FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'service_role_full_access_orders') THEN
+    CREATE POLICY service_role_full_access_orders ON public.orders FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'service_role_full_access_audit') THEN
+    CREATE POLICY service_role_full_access_audit ON public.audit_logs FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+END $$;
 
--- 5. Pre-seed Functional Initial Users with valid Bcrypt hashes
--- Passwords:
--- Admin:    AdminPass2026!
--- Dispatch: Dispatch2026!
--- Driver:   DriverPass2026!
--- Clinic:   ClinicPass2026!
--- Lab:      LabPass2026!
-
-INSERT INTO public.users (id, email, name, role, password_hash, phone, organization, contract_number, facility_type, facility_address, vehicle_reg_number, active)
+-- 7. Seed Standard Organizations (Hessen Region Hubs) if not already present
+INSERT INTO public.organizations (id, name, type, contract_number, address_street, postal_code, city, state, contact_phone, contact_email)
 VALUES
-  (
-    'USR-ADMIN-01',
-    'nsansvester89@gmail.com',
-    'Admin (nsansvester89)',
-    'ADMIN',
-    '$2b$10$A/CA3X.oQazc/S17GewRcOYeaqZ2LbgUAe1UegPIUfdX6p/Ht01IW', -- AdminPass2026!
-    '+49 170 0000000',
-    'BioDispatch / MediGo Zentrale',
-    NULL,
-    'HQ',
-    'Wiesbaden Zentrale, Hessen',
-    NULL,
-    TRUE
-  ),
-  (
-    'USR-DISPATCHER-01',
-    'dispatch@medigo-hessen.de',
-    'Katrin Weber (Dispatch Zentrale)',
-    'DISPATCHER',
-    '$2b$10$7yBYzynq5uppltb2BaaRi.44AMihfXCbFmHPftbQg8NpemdWn5cEe', -- Dispatch2026!
-    '+49 611 9882 100',
-    'MediGo Hauptstandort & Dispatch Zentrale (Wiesbaden)',
-    NULL,
-    'HQ',
-    'Wiesbaden Zentrale',
-    NULL,
-    TRUE
-  ),
-  (
-    'USR-DRIVER-01',
-    'hans.schmidt@medigo-hessen.de',
-    'Hans Schmidt (MediGo Kurier WI-MG 7741)',
-    'DRIVER',
-    '$2b$10$HVl3o5PeQ03BDwfBfFQ0B.qushOck5UVWOaKXEtj70Tbhh8pklo1W', -- DriverPass2026!
-    '+49 171 9882310',
-    'MediGo Wiesbaden Fleet & Hessen Express Logistics',
-    NULL,
-    'COURIER',
-    'Depot Wiesbaden',
-    'F-MG 7741 (Thermo Van)',
-    TRUE
-  ),
-  (
-    'USR-CLINIC-01',
-    'probeneingang@kgu.de',
-    'Dr. Martin Hoffmann',
-    'CLIENT_CLINIC',
-    '$2b$10$u31A5hrLxMP5CV/L9UZ.3e6QSI2jawlfUAUZS1gWDtQaa/JGfPV9C', -- ClinicPass2026!
-    '+49 69 6301 0',
-    'Universitätsklinikum Frankfurt am Main (Hessen)',
-    'CTR-2026-UKF-HE-01',
-    'CLINIC',
-    'Theodor-Stern-Kai 7, 60590 Frankfurt am Main, Hessen',
-    NULL,
-    TRUE
-  ),
-  (
-    'USR-LAB-01',
-    'empfang@synlab-hessen.de',
-    'Sabine Neumann (Laborleitung)',
-    'LAB_STAFF',
-    '$2b$10$DJjLvjO1kzd8L1FE.lXhg.vNSJkmw93OYjZdtYnhH0JNX6AS26Ifa', -- LabPass2026!
-    '+49 69 7000 88',
-    'Synlab Medizinisches Versorgungszentrum Frankfurt-Hessen',
-    'CTR-2026-SYNLAB-04',
-    'LABORATORY',
-    'Paul-Ehrlich-Straße 51, 60596 Frankfurt am Main',
-    NULL,
-    TRUE
-  )
-ON CONFLICT (email) DO UPDATE 
-SET 
-  name = EXCLUDED.name,
-  role = EXCLUDED.role,
-  contract_number = EXCLUDED.contract_number,
-  facility_type = EXCLUDED.facility_type,
-  facility_address = EXCLUDED.facility_address,
-  password_hash = EXCLUDED.password_hash,
-  active = EXCLUDED.active;
+  ('ORG-UKF-01', 'Universitätsklinikum Frankfurt am Main', 'HOSPITAL', 'CTR-2026-UKF-HE-01', 'Theodor-Stern-Kai 7', '60590', 'Frankfurt am Main', 'HE', '+49 69 6301 0', 'probeneingang@kgu.de'),
+  ('ORG-SYNLAB-01', 'Biosammlungszentrum Hessen - Synlab MVZ', 'LABORATORY', 'CTR-2026-SYNLAB-04', 'Paul-Ehrlich-Straße 51', '60596', 'Frankfurt am Main', 'HE', '+49 69 7000 88', 'empfang@synlab-hessen.de'),
+  ('ORG-UKGM-01', 'Universitätsklinikum Gießen und Marburg', 'HOSPITAL', 'CTR-2026-UKGM-02', 'Baldingerstraße', '35043', 'Marburg', 'HE', '+49 6421 5860', 'dispatch@ukgm.de'),
+  ('ORG-MEDIGO-HQ', 'MediGo Hessen Zentrale & Leitstand', 'CLINIC', 'CTR-MEDIGO-INTERNAL', 'Kaiser-Friedrich-Ring 98', '65185', 'Wiesbaden', 'HE', '+49 611 9882 100', 'dispatch@medigo-hessen.de')
+ON CONFLICT (id) DO NOTHING;
 
--- 6. Pre-seed Initial Orders
-INSERT INTO public.orders (id, tracking_number, status, transport_type, pickup_clinic_name, pickup_address, delivery_lab_name, delivery_address, specimen_box_count, sample_category, driver_id, driver_name, data_payload)
-VALUES
-  (
-    'ORD-DE-8821',
-    'DE-UN3373-2026-8821',
-    'SCHEDULED',
-    'REFRIGERATED_2_8C',
-    'Universitätsklinikum Frankfurt am Main',
-    'Theodor-Stern-Kai 7, 60590 Frankfurt am Main, Hessen',
-    'Biosammlungszentrum Hessen - Synlab',
-    'Paul-Ehrlich-Straße 51, 60596 Frankfurt am Main',
-    2,
-    'UN 3373 Biological Substance Cat B (Blood Serum Samples)',
-    NULL,
-    NULL,
-    '{"id":"ORD-DE-8821","trackingNumber":"DE-UN3373-2026-8821","status":"SCHEDULED","transportType":"REFRIGERATED_2_8C","pickupClinicName":"Universitätsklinikum Frankfurt am Main","pickupAddress":"Theodor-Stern-Kai 7, 60590 Frankfurt am Main, Hessen","pickupDepartment":"Station 12B - Infektiologie & Virologie","pickupContactPhone":"+49 69 6301 5120","deliveryLabName":"Biosammlungszentrum Hessen - Synlab","deliveryAddress":"Paul-Ehrlich-Straße 51, 60596 Frankfurt am Main","deliveryDepartment":"Trakt 4, Labor-Eingang C","deliveryContactPhone":"+49 69 7000 881","sampleCategory":"UN 3373 Biological Substance Cat B (Blood Serum Samples)","specimenBoxCount":2,"barcodeList":["SPEC-FRA-9901-A","SPEC-FRA-9901-B"],"specialNotes":"MediGo Hessen express. P650 packaging checked. Keep upright at 2-8°C.","temperatureHistory":[],"chainOfCustodyLogs":[],"createdAt":"2026-09-11T09:00:00.000Z"}'::jsonb
-  ),
-  (
-    'ORD-DE-9104',
-    'DE-UN3373-2026-9104',
-    'PRE_TRIP_CHECK',
-    'FROZEN_DRY_ICE',
-    'Universitätsklinikum Marburg (Lahnberge)',
-    'Baldingerstraße, 35043 Marburg, Hessen',
-    'Zentrallabor Hessen - MVZ Limburg',
-    'Senefelderstraße 1, 65553 Limburg an der Lahn',
-    1,
-    'UN 1845 Dry Ice / UN 3373 Deep Frozen Biopsies',
-    'USR-DRIVER-01',
-    'Hans Schmidt (MediGo Kurier WI-MG 7741)',
-    '{"id":"ORD-DE-9104","trackingNumber":"DE-UN3373-2026-9104","status":"PRE_TRIP_CHECK","transportType":"FROZEN_DRY_ICE","pickupClinicName":"Universitätsklinikum Marburg (Lahnberge)","pickupAddress":"Baldingerstraße, 35043 Marburg, Hessen","pickupDepartment":"Institut für Pathologie","pickupContactPhone":"+49 6421 586 2200","deliveryLabName":"Zentrallabor Hessen - MVZ Limburg","deliveryAddress":"Senefelderstraße 1, 65553 Limburg an der Lahn","deliveryDepartment":"Kryo-Annahme Station 1","deliveryContactPhone":"+49 6431 9210 0","driverId":"USR-DRIVER-01","driverName":"Hans Schmidt (MediGo Kurier WI-MG 7741)","sampleCategory":"UN 1845 Dry Ice / UN 3373 Deep Frozen Biopsies","specimenBoxCount":1,"barcodeList":["SPEC-MRB-5521-KRYO"],"specialNotes":"Dry Ice sublimating hazard. ADR ventilating protocol required.","temperatureHistory":[{"timestamp":"2026-09-11T09:15:00.000Z","temperatureCelsius":-78.2,"isBreach":false,"batteryLevel":98,"sensorId":"SENS-DRYICE-99"}],"chainOfCustodyLogs":[],"createdAt":"2026-09-11T08:30:00.000Z"}'::jsonb
-  )
-ON CONFLICT (tracking_number) DO NOTHING;
+-- Backfill existing sample users with organization_id where matching
+UPDATE public.users 
+SET organization_id = 'ORG-UKF-01' 
+WHERE email = 'probeneingang@kgu.de' AND organization_id IS NULL;
 
--- Verification query
-SELECT 'Database schema successfully created!' AS result, 
-       (SELECT COUNT(*) FROM public.users) AS user_count,
-       (SELECT COUNT(*) FROM public.orders) AS order_count;
+UPDATE public.users 
+SET organization_id = 'ORG-SYNLAB-01' 
+WHERE email = 'empfang@synlab-hessen.de' AND organization_id IS NULL;
+
+UPDATE public.users 
+SET organization_id = 'ORG-MEDIGO-HQ' 
+WHERE (email = 'dispatch@medigo-hessen.de' OR email = 'nsansvester89@gmail.com') AND organization_id IS NULL;

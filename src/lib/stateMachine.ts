@@ -1,4 +1,4 @@
-// Strict Sequential State Machine for UN 3373 Medical Courier Workflow
+// Strict Sequential State Machine for UN 3373 Medical Courier Workflow & Conflict Quarantine
 
 import { Order, OrderStatus, PreTripCheck, ChainOfCustody, CancelReasonCode } from '../types';
 
@@ -8,10 +8,11 @@ export interface TransitionValidationResult {
 }
 
 export const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  SCHEDULED: ['PRE_TRIP_CHECK', 'CANCELLED'],
-  PRE_TRIP_CHECK: ['PICKED_UP', 'CANCELLED'],
-  PICKED_UP: ['IN_TRANSIT', 'CANCELLED'],
-  IN_TRANSIT: ['DELIVERED', 'CANCELLED'],
+  SCHEDULED: ['PRE_TRIP_CHECK', 'QUARANTINED_UNSYNCED', 'CANCELLED'],
+  PRE_TRIP_CHECK: ['PICKED_UP', 'QUARANTINED_UNSYNCED', 'CANCELLED'],
+  PICKED_UP: ['IN_TRANSIT', 'QUARANTINED_UNSYNCED', 'CANCELLED'],
+  IN_TRANSIT: ['DELIVERED', 'QUARANTINED_UNSYNCED', 'CANCELLED'],
+  QUARANTINED_UNSYNCED: ['SCHEDULED', 'PRE_TRIP_CHECK', 'PICKED_UP', 'IN_TRANSIT', 'CANCELLED'], // Dispatcher manual resolution
   DELIVERED: [], // Terminal
   CANCELLED: []  // Terminal
 };
@@ -27,13 +28,14 @@ export function validateStateTransition(
     pickupSignature?: Partial<ChainOfCustody>;
     deliverySignature?: Partial<ChainOfCustody>;
     cancellationReason?: CancelReasonCode;
+    dispatcherOverride?: boolean;
   }
 ): TransitionValidationResult {
   const currentStatus = order.status;
   const errors: string[] = [];
 
   // 1. Check state graph sequence
-  const allowedNextStates = VALID_TRANSITIONS[currentStatus];
+  const allowedNextStates = VALID_TRANSITIONS[currentStatus] || [];
   if (!allowedNextStates.includes(targetStatus)) {
     return {
       allowed: false,
@@ -41,7 +43,12 @@ export function validateStateTransition(
     };
   }
 
-  // 2. State-specific validation rules
+  // 2. Allow Dispatcher manual quarantine clearance
+  if (currentStatus === 'QUARANTINED_UNSYNCED' && context?.dispatcherOverride) {
+    return { allowed: true, errors: [] };
+  }
+
+  // 3. State-specific validation rules
   if (targetStatus === 'PRE_TRIP_CHECK') {
     if (!order.driverId) {
       errors.push('A licensed medical courier driver must be assigned to accept order.');
@@ -88,7 +95,7 @@ export function validateStateTransition(
 
   if (targetStatus === 'IN_TRANSIT') {
     // Verify that pickup was fully logged
-    const pickupRecord = order.chainOfCustodyLogs.find(l => l.eventType === 'PICKUP_SIGNATURE') || context?.pickupSignature;
+    const pickupRecord = order.chainOfCustodyLogs?.find(l => l.eventType === 'PICKUP_SIGNATURE') || context?.pickupSignature;
     if (!pickupRecord) {
       errors.push('Cannot transition to In Transit without verified Pickup Chain of Custody sign-off.');
     }
@@ -108,7 +115,7 @@ export function validateStateTransition(
         errors.push('Verification scan of specimen barcodes required at lab acceptance.');
       }
     } else {
-      const existingDel = order.chainOfCustodyLogs.find(l => l.eventType === 'DELIVERY_SIGNATURE');
+      const existingDel = order.chainOfCustodyLogs?.find(l => l.eventType === 'DELIVERY_SIGNATURE');
       if (!existingDel) {
         errors.push('Laboratory handover sign-off and recipient signature are required.');
       }

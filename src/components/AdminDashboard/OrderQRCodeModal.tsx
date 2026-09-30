@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Order } from '../../types';
 import { generateQRCodeDataURL, printOrderQRSticker, buildOrderQRPayloadString } from '../../lib/qrCodeGenerator';
-import { QrCode, Download, Printer, Copy, Check, X, ShieldAlert, PackageCheck, ExternalLink, Sparkles } from 'lucide-react';
+import { QrCode, Download, Printer, Copy, Check, X } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface OrderQRCodeModalProps {
   order: Order | null;
@@ -16,6 +17,9 @@ export const OrderQRCodeModal: React.FC<OrderQRCodeModalProps> = ({
   onClose,
   onSimulateScanDriver,
 }) => {
+  const { language } = useLanguage();
+  const isDe = language === 'de';
+
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'FULL_ORDER' | 'TRACKING_NUM' | 'BARCODES'>('FULL_ORDER');
   const [selectedBarcode, setSelectedBarcode] = useState<string>('');
@@ -79,16 +83,6 @@ export const OrderQRCodeModal: React.FC<OrderQRCodeModalProps> = ({
     printOrderQRSticker(order);
   };
 
-  const handleSendToDriverScanner = () => {
-    const payload = activeTab === 'FULL_ORDER' 
-      ? buildOrderQRPayloadString(order) 
-      : (activeTab === 'TRACKING_NUM' ? order.trackingNumber : selectedBarcode);
-
-    if (onSimulateScanDriver) {
-      onSimulateScanDriver(payload);
-    }
-  };
-
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
       <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl text-slate-100 my-auto space-y-0">
@@ -100,7 +94,9 @@ export const OrderQRCodeModal: React.FC<OrderQRCodeModalProps> = ({
               <QrCode className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-base text-white">Medical Order QR Generator</h3>
+              <h3 className="font-bold text-base text-white">
+                {isDe ? 'Medizinischer Auftrag QR-Generator' : 'Medical Order QR Generator'}
+              </h3>
               <p className="text-xs text-slate-400 font-mono">{order.trackingNumber}</p>
             </div>
           </div>
@@ -121,7 +117,7 @@ export const OrderQRCodeModal: React.FC<OrderQRCodeModalProps> = ({
                 activeTab === 'FULL_ORDER' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              Order JSON Payload
+              {isDe ? 'Auftrags-Nutzdaten' : 'Order JSON Payload'}
             </button>
 
             <button
@@ -130,7 +126,7 @@ export const OrderQRCodeModal: React.FC<OrderQRCodeModalProps> = ({
                 activeTab === 'TRACKING_NUM' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              Tracking Number
+              {isDe ? 'Tracking-Nummer' : 'Tracking Number'}
             </button>
 
             <button
@@ -139,14 +135,16 @@ export const OrderQRCodeModal: React.FC<OrderQRCodeModalProps> = ({
                 activeTab === 'BARCODES' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              Specimen Barcode
+              {isDe ? 'Proben-Barcode' : 'Specimen Barcode'}
             </button>
           </div>
 
           {/* If Barcodes sub-tab, show dropdown to select individual specimen barcode */}
           {activeTab === 'BARCODES' && order.barcodeList.length > 0 && (
             <div className="space-y-1">
-              <label className="text-slate-300 font-medium">Select Specimen Box Barcode:</label>
+              <label className="text-slate-300 font-medium">
+                {isDe ? 'Probenbehälter-Barcode auswählen:' : 'Select Specimen Box Barcode:'}
+              </label>
               <select
                 value={selectedBarcode}
                 onChange={(e) => setSelectedBarcode(e.target.value)}
@@ -154,7 +152,7 @@ export const OrderQRCodeModal: React.FC<OrderQRCodeModalProps> = ({
               >
                 {order.barcodeList.map((bc, idx) => (
                   <option key={idx} value={bc}>
-                    {bc} (Specimen #{idx + 1})
+                    {bc} ({isDe ? 'Probe' : 'Specimen'} #{idx + 1})
                   </option>
                 ))}
               </select>
@@ -177,7 +175,7 @@ export const OrderQRCodeModal: React.FC<OrderQRCodeModalProps> = ({
             <div className="bg-white p-3.5 rounded-xl shadow-xl mt-4">
               {isGenerating ? (
                 <div className="w-48 h-48 flex items-center justify-center text-slate-800 font-mono text-xs">
-                  Generating QR...
+                  {isDe ? 'Erzeuge QR-Code...' : 'Generating QR...'}
                 </div>
               ) : qrDataUrl ? (
                 <img src={qrDataUrl} alt="Order QR Code" className="w-48 h-48 object-contain" />
@@ -185,7 +183,7 @@ export const OrderQRCodeModal: React.FC<OrderQRCodeModalProps> = ({
             </div>
 
             <div className="text-center space-y-1 font-mono">
-              <span className="text-slate-400 text-[10px] block">SCANNABLE PAYLOAD</span>
+              <span className="text-slate-400 text-[10px] block">{isDe ? 'SCANNBARER INHALT' : 'SCANNABLE PAYLOAD'}</span>
               <p className="text-emerald-400 font-bold text-xs max-w-xs truncate">
                 {activeTab === 'FULL_ORDER' ? order.id : (activeTab === 'TRACKING_NUM' ? order.trackingNumber : selectedBarcode)}
               </p>
@@ -195,15 +193,15 @@ export const OrderQRCodeModal: React.FC<OrderQRCodeModalProps> = ({
           {/* Quick Info Box */}
           <div className="bg-slate-950/60 border border-slate-800 p-3 rounded-xl space-y-1 text-[11px] text-slate-300">
             <div className="flex justify-between">
-              <span className="text-slate-400">Pickup Clinic:</span>
+              <span className="text-slate-400">{isDe ? 'Abhol-Klinik:' : 'Pickup Clinic:'}</span>
               <span className="font-semibold text-white">{order.pickupClinicName}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">Delivery Lab:</span>
+              <span className="text-slate-400">{isDe ? 'Ziel-Labor:' : 'Delivery Lab:'}</span>
               <span className="font-semibold text-white">{order.deliveryLabName}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">Registered Barcodes:</span>
+              <span className="text-slate-400">{isDe ? 'Erfasste Barcodes:' : 'Registered Barcodes:'}</span>
               <span className="font-mono text-emerald-400">{order.barcodeList.join(', ')}</span>
             </div>
           </div>
@@ -215,7 +213,7 @@ export const OrderQRCodeModal: React.FC<OrderQRCodeModalProps> = ({
               className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 p-2.5 rounded-xl font-medium flex items-center justify-center space-x-2 transition-all"
             >
               {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-cyan-400" />}
-              <span>{copied ? 'Copied to Clipboard' : 'Copy Payload'}</span>
+              <span>{copied ? (isDe ? 'Kopiert' : 'Copied to Clipboard') : (isDe ? 'Inhalt kopieren' : 'Copy Payload')}</span>
             </button>
 
             <button
@@ -223,7 +221,7 @@ export const OrderQRCodeModal: React.FC<OrderQRCodeModalProps> = ({
               className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 p-2.5 rounded-xl font-medium flex items-center justify-center space-x-2 transition-all"
             >
               <Download className="w-4 h-4 text-emerald-400" />
-              <span>Download PNG</span>
+              <span>{isDe ? 'PNG Bild herunterladen' : 'Download PNG'}</span>
             </button>
 
             <button
@@ -231,7 +229,7 @@ export const OrderQRCodeModal: React.FC<OrderQRCodeModalProps> = ({
               className="col-span-2 bg-emerald-600 hover:bg-emerald-500 text-white p-2.5 rounded-xl font-semibold flex items-center justify-center space-x-2 shadow-lg transition-all"
             >
               <Printer className="w-4 h-4" />
-              <span>Print 100mm x 100mm UN 3373 Package Sticker</span>
+              <span>{isDe ? '100mm x 100mm UN 3373 Paketaufkleber drucken' : 'Print 100mm x 100mm UN 3373 Package Sticker'}</span>
             </button>
           </div>
 

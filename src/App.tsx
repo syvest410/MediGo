@@ -19,6 +19,7 @@ import { EmailForwardingManager } from './components/AdminDashboard/EmailForward
 import { PrismaSchemaViewer } from './components/PrismaSchemaViewer';
 import { ClientPortal } from './components/ClientPortal/ClientPortal';
 import { LegalComplianceCenter } from './components/Compliance/LegalComplianceCenter';
+import { PatientTrackingView } from './components/PatientPortal/PatientTrackingView';
 import { TemperatureSensorGuideModal } from './components/TemperatureSensorGuideModal';
 import { MobileInstallGuideModal } from './components/MobileInstallGuideModal';
 import { LoginPortalModal } from './components/Auth/LoginPortalModal';
@@ -27,6 +28,7 @@ import { UnauthorizedShield } from './components/Security/UnauthorizedShield';
 import { SecurityAuditModal } from './components/Security/SecurityAuditModal';
 import { UserManagementModal } from './components/AdminDashboard/UserManagementModal';
 import { useAuth } from './context/AuthContext';
+import { useLanguage } from './context/LanguageContext';
 
 import { Order, Role, OrderStatus, TemperatureTelemetry, User } from './types';
 import { INITIAL_ORDERS, INITIAL_USERS } from './lib/db';
@@ -35,13 +37,16 @@ import { tempSimulator } from './lib/temperatureSimulator';
 import { emailForwardingStore } from './lib/emailForwardingStore';
 
 export default function App() {
+  const { language, t } = useLanguage();
+  const isDe = language === 'de';
+
   const { currentUser: authUser, token, isAuthenticated: authIsLoggedIn, logout, dbStatus, refreshDbStatus } = useAuth();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
   const [activeRole, setActiveRole] = useState<Role>('DRIVER');
   const [currentUser, setCurrentUser] = useState<User | null>(INITIAL_USERS[1]); // Default to Driver Hans Schmidt
-  const [viewMode, setViewMode] = useState<'DRIVER_MOBILE' | 'DISPATCH_DASHBOARD' | 'CLIENT_PORTAL' | 'LEGAL_COMPLIANCE' | 'PRISMA_SCHEMA' | 'SECURITY_AUDIT'>('DRIVER_MOBILE');
+  const [viewMode, setViewMode] = useState<'DRIVER_MOBILE' | 'DISPATCH_DASHBOARD' | 'CLIENT_PORTAL' | 'LEGAL_COMPLIANCE' | 'PRISMA_SCHEMA' | 'SECURITY_AUDIT' | 'PATIENT_TRACKING'>('DRIVER_MOBILE');
   const [dashboardTab, setDashboardTab] = useState<'ORDERS' | 'MAP' | 'TARIFF_HOLIDAYS' | 'OPERATIONAL_MODES' | 'VACATION' | 'TELEMETRY' | 'AUDIT' | 'EXPORTS' | 'EMAIL_FORWARDING'>('ORDERS');
   
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(orders[0] || null);
@@ -379,14 +384,20 @@ export default function App() {
               isNightShift ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-800 shadow-sm'
             }`}>
               <div>
-                <strong className={`block text-sm ${isNightShift ? 'text-white' : 'text-slate-900'}`}>Medical Courier Driver App & Job Board</strong>
-                <span className={isNightShift ? 'text-slate-400' : 'text-slate-600'}>Sequential state machine execution with offline queueing + Job Marketplace for claiming open pickups.</span>
+                <strong className={`block text-sm ${isNightShift ? 'text-white' : 'text-slate-900'}`}>
+                  {isDe ? 'Kurierfahrer App & Auftragsbörse' : 'Medical Courier Driver App & Job Board'}
+                </strong>
+                <span className={isNightShift ? 'text-slate-400' : 'text-slate-600'}>
+                  {isDe 
+                    ? 'Strikte ADR-Prozesskette mit Offline-Warteschlange + Auftragsbörse zur Annahme offener Fahrten.' 
+                    : 'Sequential state machine execution with offline queueing + Job Marketplace for claiming open pickups.'}
+                </span>
               </div>
               <button
                 onClick={() => setViewMode('SECURITY_AUDIT')}
                 className="bg-amber-600 hover:bg-amber-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition-all shrink-0 shadow-sm"
               >
-                Security Matrix
+                {isDe ? 'Sicherheits-Matrix' : 'Security Matrix'}
               </button>
             </div>
 
@@ -415,7 +426,7 @@ export default function App() {
                     : isNightShift ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100'
                 }`}
               >
-                Orders & Scheduling
+                {t('dispatch.tab_orders')}
               </button>
 
               <button
@@ -426,7 +437,7 @@ export default function App() {
                     : isNightShift ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100'
                 }`}
               >
-                Live GPS Dispatch Map
+                {t('dispatch.tab_map')}
               </button>
 
               <button
@@ -437,7 +448,7 @@ export default function App() {
                     : isNightShift ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100'
                 }`}
               >
-                Tariffs & Feiertage
+                {t('dispatch.tab_tariffs')}
               </button>
 
               <button
@@ -448,7 +459,7 @@ export default function App() {
                     : isNightShift ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100'
                 }`}
               >
-                Solo / Fleet Scaling
+                {t('dispatch.tab_modes')}
               </button>
 
               <button
@@ -459,7 +470,7 @@ export default function App() {
                     : isNightShift ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100'
                 }`}
               >
-                Vacation Shutdown
+                {t('dispatch.tab_vacation')}
               </button>
 
               <button
@@ -470,7 +481,7 @@ export default function App() {
                     : isNightShift ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100'
                 }`}
               >
-                <span>Temperature Telemetry</span>
+                <span>{t('dispatch.tab_telemetry')}</span>
                 {activeBreachesCount > 0 && (
                   <span className="ml-1.5 bg-rose-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold">
                     {activeBreachesCount}
@@ -486,7 +497,7 @@ export default function App() {
                     : isNightShift ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100'
                 }`}
               >
-                Immutable Audit Trail
+                {t('dispatch.tab_audit')}
               </button>
 
               <button
@@ -497,7 +508,7 @@ export default function App() {
                     : isNightShift ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100'
                 }`}
               >
-                Certificates & Exports
+                {t('dispatch.tab_exports')}
               </button>
 
               <button
@@ -508,7 +519,7 @@ export default function App() {
                     : isNightShift ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100'
                 }`}
               >
-                <span>📧 Email & Invoice Forwarding</span>
+                <span>{isDe ? '📧 E-Mail & Rechnungs-Weiterleitung' : '📧 Email & Invoice Forwarding'}</span>
               </button>
             </div>
 
@@ -590,13 +601,18 @@ export default function App() {
           <PrismaSchemaViewer />
         )}
 
+        {/* VIEW MODE 7: PUBLIC PATIENT & RECIPIENT TRACKING PORTAL */}
+        {viewMode === 'PATIENT_TRACKING' && (
+          <PatientTrackingView />
+        )}
+
       </main>
 
       {/* Footer */}
       <footer className="bg-slate-900 border-t border-slate-800 py-4 px-6 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>MediGo Hessen • UN 3373 Biological Substance Category B Medical Courier System</span>
-          <span>Compliance: ADR Packaging Instruction P650 & Transfusionsgesetz (Germany)</span>
+          <span>{isDe ? 'MediGo Hessen • UN 3373 Biostoff-Beförderungssystem Kategorie B' : 'MediGo Hessen • UN 3373 Biological Substance Category B Medical Courier System'}</span>
+          <span>{isDe ? 'Konformität: ADR Verpackungsanweisung P650 & Transfusionsgesetz (§ 15 TFG)' : 'Compliance: ADR Packaging Instruction P650 & Transfusionsgesetz (Germany)'}</span>
         </div>
       </footer>
 

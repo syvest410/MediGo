@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Order, OrderStatus, TRANSPORT_TEMP_RANGES, CancelReasonCode } from '../../types';
+import { Order, OrderStatus, TRANSPORT_TEMP_RANGES } from '../../types';
 import { PreTripChecklistModal } from './PreTripChecklistModal';
 import { BarcodeScannerModal } from './BarcodeScannerModal';
 import { SignaturePadModal } from './SignaturePadModal';
@@ -10,22 +10,18 @@ import { PDFPreviewModal } from '../AdminDashboard/PDFPreviewModal';
 import { DriverJobBoard } from './DriverJobBoard';
 import { generateChainOfCustodyPDF } from '../../lib/pdfGenerator';
 import { tempSimulator } from '../../lib/temperatureSimulator';
+import { useLanguage } from '../../context/LanguageContext';
 import {
   Truck,
   MapPin,
-  Clock,
   CheckCircle,
   Thermometer,
   QrCode,
   FileCheck,
   Download,
   AlertTriangle,
-  ChevronRight,
   Flame,
   XCircle,
-  ShieldAlert,
-  ArrowRight,
-  UserCheck,
   Eye
 } from 'lucide-react';
 
@@ -46,6 +42,9 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
   onClaimOrder,
   isOffline,
 }) => {
+  const { language, t } = useLanguage();
+  const isDe = language === 'de';
+
   const [driverTab, setDriverTab] = useState<'MY_DELIVERIES' | 'JOB_MARKETPLACE'>('MY_DELIVERIES');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(orders[0] || null);
   
@@ -61,23 +60,24 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
 
   // Filter orders assigned to driver
   const driverOrders = orders;
-
   const currentOrder = selectedOrder ? (orders.find(o => o.id === selectedOrder.id) || selectedOrder) : orders[0];
 
   const getStatusBadge = (status: OrderStatus) => {
     switch (status) {
       case 'SCHEDULED':
-        return <span className="bg-amber-950/80 text-amber-300 border border-amber-700 px-2.5 py-1 rounded-full text-xs font-semibold">1. Scheduled</span>;
+        return <span className="bg-amber-950/80 text-amber-300 border border-amber-700 px-2.5 py-1 rounded-full text-xs font-semibold">{t('status.SCHEDULED')}</span>;
       case 'PRE_TRIP_CHECK':
-        return <span className="bg-blue-950/80 text-blue-300 border border-blue-700 px-2.5 py-1 rounded-full text-xs font-semibold">2. Pre-Trip Check</span>;
+        return <span className="bg-blue-950/80 text-blue-300 border border-blue-700 px-2.5 py-1 rounded-full text-xs font-semibold">{t('status.PRE_TRIP_CHECK')}</span>;
       case 'PICKED_UP':
-        return <span className="bg-purple-950/80 text-purple-300 border border-purple-700 px-2.5 py-1 rounded-full text-xs font-semibold">3. Picked Up</span>;
+        return <span className="bg-purple-950/80 text-purple-300 border border-purple-700 px-2.5 py-1 rounded-full text-xs font-semibold">{t('status.PICKED_UP')}</span>;
       case 'IN_TRANSIT':
-        return <span className="bg-cyan-950/80 text-cyan-300 border border-cyan-700 px-2.5 py-1 rounded-full text-xs font-semibold animate-pulse">4. In Transit</span>;
+        return <span className="bg-cyan-950/80 text-cyan-300 border border-cyan-700 px-2.5 py-1 rounded-full text-xs font-semibold animate-pulse">{t('status.IN_TRANSIT')}</span>;
       case 'DELIVERED':
-        return <span className="bg-emerald-950/80 text-emerald-300 border border-emerald-700 px-2.5 py-1 rounded-full text-xs font-semibold">5. Delivered</span>;
+        return <span className="bg-emerald-950/80 text-emerald-300 border border-emerald-700 px-2.5 py-1 rounded-full text-xs font-semibold">{t('status.DELIVERED')}</span>;
       case 'CANCELLED':
-        return <span className="bg-rose-950/80 text-rose-300 border border-rose-700 px-2.5 py-1 rounded-full text-xs font-semibold">Cancelled</span>;
+        return <span className="bg-rose-950/80 text-rose-300 border border-rose-700 px-2.5 py-1 rounded-full text-xs font-semibold">{t('status.CANCELLED')}</span>;
+      default:
+        return <span className="bg-slate-800 text-slate-300 px-2.5 py-1 rounded-full text-xs">{status}</span>;
     }
   };
 
@@ -93,11 +93,11 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
       <div className="bg-slate-900 border-b border-slate-800 px-4 py-2.5 flex items-center justify-between text-xs text-slate-400">
         <div className="flex items-center space-x-1.5 font-bold text-slate-200">
           <Truck className="w-4 h-4 text-emerald-400" />
-          <span>Kurier 104 • B-BD 7741</span>
+          <span>Kurier 104 • WI-MG 7741</span>
         </div>
         <div className="flex items-center space-x-2">
-          {isOffline && <span className="text-amber-400 font-semibold bg-amber-950 px-1.5 py-0.5 rounded text-[10px]">Basement</span>}
-          <span>{new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span>
+          {isOffline && <span className="text-amber-400 font-semibold bg-amber-950 px-1.5 py-0.5 rounded text-[10px]">{isDe ? 'Keller-Modus' : 'Basement'}</span>}
+          <span>{new Date().toLocaleTimeString(isDe ? 'de-DE' : 'en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
       </div>
 
@@ -109,7 +109,7 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
             driverTab === 'MY_DELIVERIES' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          My Active Deliveries
+          {t('driver.tab_my_deliveries')}
         </button>
         <button
           onClick={() => setDriverTab('JOB_MARKETPLACE')}
@@ -117,7 +117,7 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
             driverTab === 'JOB_MARKETPLACE' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          Available Jobs
+          {t('driver.tab_marketplace')}
         </button>
       </div>
 
@@ -153,14 +153,16 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
       )}
 
       {/* Main Screen Content */}
-      {currentOrder && (
+      {currentOrder && driverTab === 'MY_DELIVERIES' && (
         <div className="p-4 space-y-4 flex-1 overflow-y-auto text-xs">
           
           {/* Status & Transport Type Banner */}
           <div className="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl space-y-2 shadow-md">
             <div className="flex items-center justify-between">
               <div>
-                <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold block">UN 3373 Specimen Transport</span>
+                <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold block">
+                  {isDe ? 'UN 3373 Probentransport' : 'UN 3373 Specimen Transport'}
+                </span>
                 <h2 className="text-base font-bold text-white">{currentOrder.trackingNumber}</h2>
               </div>
               {getStatusBadge(currentOrder.status)}
@@ -169,7 +171,7 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
             <div className="flex items-center justify-between pt-1 border-t border-slate-800/80 text-slate-300 font-medium">
               <div className="flex items-center space-x-2">
                 <Thermometer className="w-4 h-4 text-emerald-400" />
-                <span>Transport Spec: {TRANSPORT_TEMP_RANGES[currentOrder.transportType]?.label}</span>
+                <span>{isDe ? 'Sollwert:' : 'Spec:'} {TRANSPORT_TEMP_RANGES[currentOrder.transportType]?.label}</span>
               </div>
 
               <button
@@ -177,21 +179,23 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
                 className="bg-slate-800 hover:bg-slate-700 text-emerald-400 px-2 py-1 rounded-lg border border-slate-700 text-[11px] font-semibold flex items-center space-x-1 transition-all"
               >
                 <QrCode className="w-3.5 h-3.5" />
-                <span>Show QR Label</span>
+                <span>{isDe ? 'QR-Label' : 'Show QR'}</span>
               </button>
             </div>
           </div>
 
           {/* Sequential Driver State Machine Progress Bar */}
           <div className="bg-slate-900/80 border border-slate-800 p-3 rounded-xl space-y-2">
-            <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">Strict ADR Workflow Sequence</span>
+            <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">
+              {isDe ? 'Strikte ADR Prozesskette' : 'Strict ADR Workflow Sequence'}
+            </span>
             
             <div className="grid grid-cols-5 gap-1 text-[9px] font-bold text-center">
-              <div className={`p-1 rounded ${currentOrder.status === 'SCHEDULED' ? 'bg-amber-600 text-white' : 'bg-slate-800 text-slate-400'}`}>1. Sched</div>
-              <div className={`p-1 rounded ${currentOrder.status === 'PRE_TRIP_CHECK' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}>2. P650</div>
-              <div className={`p-1 rounded ${currentOrder.status === 'PICKED_UP' ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-400'}`}>3. Picked</div>
-              <div className={`p-1 rounded ${currentOrder.status === 'IN_TRANSIT' ? 'bg-cyan-600 text-white' : 'bg-slate-800 text-slate-400'}`}>4. Transit</div>
-              <div className={`p-1 rounded ${currentOrder.status === 'DELIVERED' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'}`}>5. Delivered</div>
+              <div className={`p-1 rounded ${currentOrder.status === 'SCHEDULED' ? 'bg-amber-600 text-white' : 'bg-slate-800 text-slate-400'}`}>{isDe ? '1. Geplant' : '1. Sched'}</div>
+              <div className={`p-1 rounded ${currentOrder.status === 'PRE_TRIP_CHECK' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}>{isDe ? '2. P650' : '2. P650'}</div>
+              <div className={`p-1 rounded ${currentOrder.status === 'PICKED_UP' ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-400'}`}>{isDe ? '3. Übern.' : '3. Picked'}</div>
+              <div className={`p-1 rounded ${currentOrder.status === 'IN_TRANSIT' ? 'bg-cyan-600 text-white' : 'bg-slate-800 text-slate-400'}`}>{isDe ? '4. Fahrt' : '4. Transit'}</div>
+              <div className={`p-1 rounded ${currentOrder.status === 'DELIVERED' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'}`}>{isDe ? '5. Abgabe' : '5. Deliv'}</div>
             </div>
           </div>
 
@@ -204,10 +208,10 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
                 <MapPin className="w-4 h-4" />
               </div>
               <div className="space-y-0.5">
-                <span className="text-[10px] text-amber-400 font-semibold uppercase tracking-wider block">PICKUP CLINIC</span>
+                <span className="text-[10px] text-amber-400 font-semibold uppercase tracking-wider block">{isDe ? 'ABHOLUNG KLINIK' : 'PICKUP CLINIC'}</span>
                 <h4 className="font-bold text-white text-xs">{currentOrder.pickupClinicName}</h4>
                 <p className="text-slate-400 text-[11px]">{currentOrder.pickupAddress}</p>
-                {currentOrder.pickupDepartment && <p className="text-slate-300 font-medium text-[11px]">Dept: {currentOrder.pickupDepartment}</p>}
+                {currentOrder.pickupDepartment && <p className="text-slate-300 font-medium text-[11px]">{isDe ? 'Station:' : 'Dept:'} {currentOrder.pickupDepartment}</p>}
               </div>
             </div>
 
@@ -219,10 +223,10 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
                 <MapPin className="w-4 h-4" />
               </div>
               <div className="space-y-0.5">
-                <span className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider block">DELIVERY LABORATORY</span>
+                <span className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider block">{isDe ? 'ZIELLABOR EMPFANG' : 'DELIVERY LABORATORY'}</span>
                 <h4 className="font-bold text-white text-xs">{currentOrder.deliveryLabName}</h4>
                 <p className="text-slate-400 text-[11px]">{currentOrder.deliveryAddress}</p>
-                {currentOrder.deliveryDepartment && <p className="text-slate-300 font-medium text-[11px]">Dept: {currentOrder.deliveryDepartment}</p>}
+                {currentOrder.deliveryDepartment && <p className="text-slate-300 font-medium text-[11px]">{isDe ? 'Bereich:' : 'Dept:'} {currentOrder.deliveryDepartment}</p>}
               </div>
             </div>
 
@@ -234,7 +238,7 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-slate-200 flex items-center space-x-1.5">
                   <Thermometer className="w-4 h-4 text-cyan-400" />
-                  <span>Live Thermo-Sensor Telemetry</span>
+                  <span>{isDe ? 'Live Temperatur-Telemetrie' : 'Live Thermo-Sensor Telemetry'}</span>
                 </span>
                 {currentOrder.status === 'IN_TRANSIT' && (
                   <button
@@ -242,7 +246,7 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
                     className="bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-700 px-2 py-0.5 rounded text-[10px] font-semibold flex items-center space-x-1"
                   >
                     <Flame className="w-3 h-3 text-rose-400" />
-                    <span>Test Temp Spike</span>
+                    <span>{isDe ? 'Alarm-Test' : 'Test Temp Spike'}</span>
                   </button>
                 )}
               </div>
@@ -250,7 +254,7 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
               {currentOrder.telemetryLogs.length > 0 ? (
                 <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between font-mono">
                   <div>
-                    <span className="text-slate-400 text-[10px] block">Current Temperature</span>
+                    <span className="text-slate-400 text-[10px] block">{isDe ? 'Aktuelle Temperatur' : 'Current Temperature'}</span>
                     <span className={`text-base font-bold ${
                       currentOrder.telemetryLogs[0]?.isBreach ? 'text-rose-400 animate-pulse' : 'text-emerald-400'
                     }`}>
@@ -259,14 +263,14 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
                   </div>
 
                   <div className="text-right">
-                    <span className="text-slate-400 text-[10px] block">Battery / Humidity</span>
+                    <span className="text-slate-400 text-[10px] block">{isDe ? 'Batterie / Feuchte' : 'Battery / Humidity'}</span>
                     <span className="text-slate-300 text-xs">
                       {currentOrder.telemetryLogs[0]?.batteryLevelPercent}% • {currentOrder.telemetryLogs[0]?.humidityPercent}%
                     </span>
                   </div>
                 </div>
               ) : (
-                <p className="text-slate-500 italic text-[11px]">Sensor initializing live Bluetooth stream...</p>
+                <p className="text-slate-500 italic text-[11px]">{isDe ? 'Bluetooth-Sensor verbindet...' : 'Sensor initializing live Bluetooth stream...'}</p>
               )}
             </div>
           )}
@@ -284,7 +288,7 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
                 className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg flex items-center justify-center space-x-2 text-sm transition-all"
               >
                 <CheckCircle className="w-5 h-5" />
-                <span>Accept Order & Start Pre-Trip Check</span>
+                <span>{isDe ? 'Auftrag annehmen & Vor-Fahrt Check starten' : 'Accept Order & Start Pre-Trip Check'}</span>
               </button>
             )}
 
@@ -296,7 +300,7 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
                   className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg flex items-center justify-center space-x-2 text-sm transition-all"
                 >
                   <FileCheck className="w-5 h-5" />
-                  <span>Complete Mandatory P650 Inspection</span>
+                  <span>{isDe ? 'P650 Fahrzeug- & Schutzcheck durchführen' : 'Complete Mandatory P650 Inspection'}</span>
                 </button>
 
                 {currentOrder.preTripCheck && (
@@ -305,7 +309,7 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
                     className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg flex items-center justify-center space-x-2 text-sm transition-all"
                   >
                     <QrCode className="w-5 h-5" />
-                    <span>Proceed to Pickup Barcode Scan</span>
+                    <span>{isDe ? 'Weiter zum Proben-Barcode Scan' : 'Proceed to Pickup Barcode Scan'}</span>
                   </button>
                 )}
               </div>
@@ -321,13 +325,13 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
                       userName: 'Hans Schmidt',
                       userRole: 'DRIVER',
                       deviceId: 'MOB-DRIVER-104',
-                      coords: { lat: 52.5200, lng: 13.4050 }
+                      coords: { lat: 50.1109, lng: 8.6821 }
                     });
                   }}
                   className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg flex items-center justify-center space-x-2 text-sm transition-all"
                 >
                   <Truck className="w-5 h-5" />
-                  <span>Start In Transit Drive to Laboratory</span>
+                  <span>{isDe ? 'Fahrt zum Ziellabor starten (In Transit)' : 'Start In Transit Drive to Laboratory'}</span>
                 </button>
               </div>
             )}
@@ -339,7 +343,7 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
                 className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg flex items-center justify-center space-x-2 text-sm transition-all"
               >
                 <QrCode className="w-5 h-5" />
-                <span>Lab Arrival: Scan Barcodes & Capture Sign-Off</span>
+                <span>{isDe ? 'Laborankunft: Barcodes scannen & Quittieren' : 'Lab Arrival: Scan Barcodes & Capture Sign-Off'}</span>
               </button>
             )}
 
@@ -348,8 +352,8 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
               <div className="space-y-2">
                 <div className="bg-emerald-950/80 border border-emerald-700 p-3 rounded-xl text-center text-emerald-200">
                   <CheckCircle className="w-6 h-6 text-emerald-400 mx-auto mb-1" />
-                  <span className="font-bold block text-sm">Specimen Delivered Successfully</span>
-                  <span className="text-[11px] text-emerald-300">Handover verified at laboratory</span>
+                  <span className="font-bold block text-sm">{isDe ? 'Probe erfolgreich übergeben' : 'Specimen Delivered Successfully'}</span>
+                  <span className="text-[11px] text-emerald-300">{isDe ? 'Übergabe im Ziellabor dokumentiert' : 'Handover verified at laboratory'}</span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -358,7 +362,7 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
                     className="bg-cyan-950 hover:bg-cyan-900 border border-cyan-800 text-cyan-300 font-bold py-2.5 px-3 rounded-xl flex items-center justify-center space-x-1.5 text-xs transition-all shadow-sm"
                   >
                     <Eye className="w-4 h-4 text-cyan-400" />
-                    <span>View Certificate</span>
+                    <span>{isDe ? 'Zertifikat ansehen' : 'View Certificate'}</span>
                   </button>
 
                   <button
@@ -366,7 +370,7 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
                     className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold py-2.5 px-3 rounded-xl flex items-center justify-center space-x-1.5 text-xs transition-all"
                   >
                     <Download className="w-4 h-4 text-emerald-400" />
-                    <span>Download PDF</span>
+                    <span>{isDe ? 'PDF herunterladen' : 'Download PDF'}</span>
                   </button>
                 </div>
               </div>
@@ -380,7 +384,7 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
                   className="w-full bg-amber-950/80 hover:bg-amber-900 text-amber-200 border border-amber-700/80 font-bold py-2 px-3 rounded-xl flex items-center justify-center space-x-1.5 text-xs transition-all"
                 >
                   <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Solo Emergency Pause / Subcontractor</span>
+                  <span>{isDe ? 'Notfall-Einzelfahrt Modus' : 'Solo Emergency Pause / Subcontractor'}</span>
                 </button>
 
                 <button
@@ -388,7 +392,7 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
                   className="w-full bg-slate-900 hover:bg-rose-950 text-slate-400 hover:text-rose-200 border border-slate-800 hover:border-rose-800 font-semibold py-2 px-3 rounded-xl flex items-center justify-center space-x-1 text-xs transition-all"
                 >
                   <XCircle className="w-3.5 h-3.5" />
-                  <span>Protocol Abort / Reject</span>
+                  <span>{isDe ? 'Auftrag abbrechen' : 'Protocol Abort / Reject'}</span>
                 </button>
               </div>
             )}
@@ -400,7 +404,7 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
 
       {/* Driver Mobile Footer */}
       <div className="bg-slate-900 border-t border-slate-800 px-4 py-2 text-center text-[10px] text-slate-500">
-        ADR P650 Biological Substance Category B Transport System • Germany
+        {isDe ? 'ADR P650 Biostofftransport-System • Landeshauptstadt Wiesbaden' : 'ADR P650 Biological Substance Category B Transport System • Germany'}
       </div>
 
       {/* Modals */}
@@ -428,10 +432,10 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
 
           <SignaturePadModal
             isOpen={activeModal === 'SIGNATURE_PICKUP'}
-            title="Clinic Pickup Handover"
-            subtitle="Capture Hospital / Clinic Staff Sign-off"
+            title={isDe ? 'Probenübernahme an der Klinik' : 'Clinic Pickup Handover'}
+            subtitle={isDe ? 'Digitale Quittierung durch Stationspersonal' : 'Capture Hospital / Clinic Staff Sign-off'}
             defaultStaffName="Schwester Elena Meyer"
-            defaultStaffTitle="Stationsleitung Infektiologie"
+            defaultStaffTitle={isDe ? 'Stationsleitung Infektiologie' : 'Ward Lead Nurse'}
             scannedBarcodes={tempScannedBarcodes}
             onClose={() => setActiveModal(null)}
             onSubmit={(cocData) => {
@@ -454,10 +458,10 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
 
           <SignaturePadModal
             isOpen={activeModal === 'SIGNATURE_DELIVERY'}
-            title="Laboratory Handover Acceptance"
-            subtitle="Capture Recipient Lab Staff Sign-off"
+            title={isDe ? 'Probenabgabe am Labor' : 'Laboratory Handover Acceptance'}
+            subtitle={isDe ? 'Digitale Quittierung durch Laborempfang' : 'Capture Recipient Lab Staff Sign-off'}
             defaultStaffName="Sabine Neumann"
-            defaultStaffTitle="Laborleitung Empfang"
+            defaultStaffTitle={isDe ? 'Laborleitung Probeneingang' : 'Lab Reception Lead'}
             scannedBarcodes={tempScannedBarcodes}
             onClose={() => setActiveModal(null)}
             onSubmit={(cocData) => {

@@ -4,29 +4,27 @@ import {
   Send,
   CheckCircle2,
   FileText,
-  Clock,
-  ShieldCheck,
-  Building2,
-  Download,
-  AlertCircle,
-  Eye,
-  RefreshCw,
-  Sparkles,
   User,
   Settings,
   X,
   FileCheck,
   Check,
-  Paperclip
+  Paperclip,
+  Eye,
+  RefreshCw
 } from 'lucide-react';
 import { EmailForwardingSettings, ForwardedEmailLog } from '../../types';
 import { emailForwardingStore } from '../../lib/emailForwardingStore';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface EmailForwardingManagerProps {
   isNightShift?: boolean;
 }
 
 export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ isNightShift = false }) => {
+  const { language } = useLanguage();
+  const isDe = language === 'de';
+
   const [settings, setSettings] = useState<EmailForwardingSettings>(() => emailForwardingStore.getSettings());
   const [logs, setLogs] = useState<ForwardedEmailLog[]>(() => emailForwardingStore.getLogs());
   const [filterType, setFilterType] = useState<string>('ALL');
@@ -57,7 +55,7 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
       forwardingMode
     });
     setSettings(updated);
-    setSaveSuccessToast('CEO Email Forwarding Rules updated successfully!');
+    setSaveSuccessToast(isDe ? 'CEO E-Mail-Weiterleitungsregeln erfolgreich aktualisiert!' : 'CEO Email Forwarding Rules updated successfully!');
     setTimeout(() => setSaveSuccessToast(null), 4000);
   };
 
@@ -68,7 +66,7 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
       setLogs(emailForwardingStore.getLogs());
       setSelectedLogForPreview(newLog);
       setIsTestSending(false);
-      setSaveSuccessToast(`Test Email successfully sent to ${ceoEmail}`);
+      setSaveSuccessToast(isDe ? `Test-E-Mail erfolgreich gesendet an ${ceoEmail}` : `Test Email successfully sent to ${ceoEmail}`);
       setTimeout(() => setSaveSuccessToast(null), 4000);
     }, 800);
   };
@@ -91,14 +89,18 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
           </div>
           <div>
             <div className="flex items-center space-x-2 flex-wrap">
-              <h2 className="text-xl font-black tracking-tight">CEO Email & Invoice Forwarding Engine</h2>
+              <h2 className="text-xl font-black tracking-tight">
+                {isDe ? 'Geschäftsleitung E-Mail & Rechnungs-Weiterleitung' : 'CEO Email & Invoice Forwarding Engine'}
+              </h2>
               <span className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center space-x-1">
                 <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                <span>Forwarding Active</span>
+                <span>{isDe ? 'Weiterleitung Aktiv' : 'Forwarding Active'}</span>
               </span>
             </div>
             <p className={`text-xs mt-1 ${isNightShift ? 'text-slate-400' : 'text-slate-600'}`}>
-              Automatically receive completed order proofs, UN 3373 Chain of Custody PDFs, and client invoices in your executive inbox.
+              {isDe
+                ? 'Erhalten Sie abgeschlossene Transportnachweise, UN 3373 Kettennachweis-PDFs und Rechnungen automatisch im Postfach der Geschäftsführung.'
+                : 'Automatically receive completed order proofs, UN 3373 Chain of Custody PDFs, and client invoices in your executive inbox.'}
             </p>
           </div>
         </div>
@@ -113,7 +115,7 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
           ) : (
             <Send className="w-4 h-4" />
           )}
-          <span>{isTestSending ? 'Sending Verification Email...' : 'Send Test Forwarding Email'}</span>
+          <span>{isTestSending ? (isDe ? 'Sende Verifizierungs-E-Mail...' : 'Sending Verification Email...') : (isDe ? 'Test-Weiterleitung senden' : 'Send Test Forwarding Email')}</span>
         </button>
       </div>
 
@@ -139,36 +141,38 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
         }`}>
           <div className="flex items-center space-x-2 pb-2 border-b border-slate-200 dark:border-slate-800">
             <User className="w-4 h-4 text-red-500" />
-            <h3 className="font-bold text-sm">1. Executive Recipient Configuration</h3>
+            <h3 className="font-bold text-sm">
+              {isDe ? '1. Konfiguration Empfänger Geschäftsleitung' : '1. Executive Recipient Configuration'}
+            </h3>
           </div>
 
           <div className="space-y-3 text-xs">
             <div>
               <label className="block font-bold mb-1">
-                CEO / Executive Primary Email <span className="text-red-500">*</span>
+                {isDe ? 'Haupt-E-Mail der Geschäftsführung' : 'CEO / Executive Primary Email'} <span className="text-red-500">*</span>
               </label>
               <input
                 type="email"
                 required
                 value={ceoEmail}
                 onChange={e => setCeoEmail(e.target.value)}
-                placeholder="e.g. dispatch@medigo-hessen.de"
+                placeholder="z.B. geschaeftsleitung@medigo-hessen.de"
                 className={`w-full p-2.5 rounded-xl border text-xs font-medium focus:outline-none focus:ring-2 focus:ring-red-500 ${
                   isNightShift ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
                 }`}
               />
               <span className="text-[10px] text-slate-500 block mt-1">
-                All completed transports and generated client invoices will be forwarded here.
+                {isDe ? 'Alle zugestellten Proben und Rechnungen werden hierhin weitergeleitet.' : 'All completed transports and generated client invoices will be forwarded here.'}
               </span>
             </div>
 
             <div>
-              <label className="block font-bold mb-1">CEO / Executive Title</label>
+              <label className="block font-bold mb-1">{isDe ? 'Name / Titel' : 'CEO / Executive Title'}</label>
               <input
                 type="text"
                 value={ceoName}
                 onChange={e => setCeoName(e.target.value)}
-                placeholder="e.g. Katrin Weber (Managing Director)"
+                placeholder="z.B. Katrin Weber (Geschäftsführung)"
                 className={`w-full p-2.5 rounded-xl border text-xs font-medium focus:outline-none focus:ring-2 focus:ring-red-500 ${
                   isNightShift ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
                 }`}
@@ -176,18 +180,18 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
             </div>
 
             <div>
-              <label className="block font-bold mb-1">CC Accounting / Finance Email (Optional)</label>
+              <label className="block font-bold mb-1">{isDe ? 'CC Buchhaltung / Finanzen (Optional)' : 'CC Accounting / Finance Email (Optional)'}</label>
               <input
                 type="email"
                 value={ccAccountingEmail}
                 onChange={e => setCcAccountingEmail(e.target.value)}
-                placeholder="e.g. buchhaltung@medigo-hessen.de"
+                placeholder="z.B. buchhaltung@medigo-hessen.de"
                 className={`w-full p-2.5 rounded-xl border text-xs font-medium focus:outline-none focus:ring-2 focus:ring-red-500 ${
                   isNightShift ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
                 }`}
               />
               <span className="text-[10px] text-slate-500 block mt-1">
-                Receives a copy of generated client invoices and tariff summaries.
+                {isDe ? 'Erhält Kopien erzeugter Rechnungen und Tarifübersichten.' : 'Receives a copy of generated client invoices and tariff summaries.'}
               </span>
             </div>
           </div>
@@ -199,7 +203,9 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
         }`}>
           <div className="flex items-center space-x-2 pb-2 border-b border-slate-200 dark:border-slate-800">
             <Settings className="w-4 h-4 text-emerald-500" />
-            <h3 className="font-bold text-sm">2. Automatic Forwarding Rules</h3>
+            <h3 className="font-bold text-sm">
+              {isDe ? '2. Automatische Weiterleitungsregeln' : '2. Automatic Forwarding Rules'}
+            </h3>
           </div>
 
           <div className="space-y-3 text-xs">
@@ -217,9 +223,13 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
                 className="mt-0.5 h-4 w-4 text-emerald-600 rounded focus:ring-emerald-500"
               />
               <div>
-                <span className="font-bold text-slate-900 dark:text-white block">Auto-Forward Completed Orders</span>
+                <span className="font-bold text-slate-900 dark:text-white block">
+                  {isDe ? 'Zustellnachweise automatisch weiterleiten' : 'Auto-Forward Completed Orders'}
+                </span>
                 <span className="text-[11px] text-slate-500 block">
-                  Immediately emails PDF Proof of Delivery, pickup/delivery timestamps, and recipient signature when courier marks order DELIVERED.
+                  {isDe
+                    ? 'Sendet sofort PDF-Zustellnachweis, Zeitstempel und Empfängersignatur nach Quittierung durch den Kurier.'
+                    : 'Immediately emails PDF Proof of Delivery, pickup/delivery timestamps, and recipient signature when courier marks order DELIVERED.'}
                 </span>
               </div>
             </label>
@@ -237,9 +247,13 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
                 className="mt-0.5 h-4 w-4 text-red-600 rounded focus:ring-red-500"
               />
               <div>
-                <span className="font-bold text-slate-900 dark:text-white block">Auto-Forward Invoices & Billing Statements</span>
+                <span className="font-bold text-slate-900 dark:text-white block">
+                  {isDe ? 'Rechnungen & Abrechnungen weiterleiten' : 'Auto-Forward Invoices & Billing Statements'}
+                </span>
                 <span className="text-[11px] text-slate-500 block">
-                  Emails PDF billing statements, tariff breakdowns, and 19% MwSt tax calculations upon order billing or monthly statement run.
+                  {isDe
+                    ? 'Sendet PDF-Rechnungen, Tarifaufschlüsselung und 19% MwSt. bei Rechnungsstellung oder Monatslauf.'
+                    : 'Emails PDF billing statements, tariff breakdowns, and 19% MwSt tax calculations upon order billing or monthly statement run.'}
                 </span>
               </div>
             </label>
@@ -253,7 +267,7 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
                   onChange={e => setAttachTelemetryPdf(e.target.checked)}
                   className="rounded text-red-600"
                 />
-                <span>Attach Cold Chain Telemetry Log</span>
+                <span>{isDe ? 'Kühlketten-Telemetrie beifügen' : 'Attach Cold Chain Telemetry Log'}</span>
               </label>
 
               <label className="flex items-center space-x-2 text-[11px] font-semibold cursor-pointer">
@@ -263,13 +277,13 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
                   onChange={e => setAttachChainOfCustodyPdf(e.target.checked)}
                   className="rounded text-red-600"
                 />
-                <span>Attach Chain of Custody PDF</span>
+                <span>{isDe ? 'Kettennachweis-PDF beifügen' : 'Attach Chain of Custody PDF'}</span>
               </label>
             </div>
 
             {/* Delivery Mode */}
             <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
-              <label className="block font-bold mb-1">Forwarding Frequency</label>
+              <label className="block font-bold mb-1">{isDe ? 'Weiterleitungs-Frequenz' : 'Forwarding Frequency'}</label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -280,7 +294,7 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
                       : isNightShift ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-white border-slate-300 text-slate-700'
                   }`}
                 >
-                  ⚡ Instant Real-Time
+                  {isDe ? '⚡ Sofort in Echtzeit' : '⚡ Instant Real-Time'}
                 </button>
                 <button
                   type="button"
@@ -291,7 +305,7 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
                       : isNightShift ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-white border-slate-300 text-slate-700'
                   }`}
                 >
-                  🌙 Daily Evening Digest (18:00)
+                  {isDe ? '🌙 Tägliche Sammelmail (18:00)' : '🌙 Daily Evening Digest (18:00)'}
                 </button>
               </div>
             </div>
@@ -305,7 +319,7 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
             className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-6 py-3 rounded-xl shadow-md transition-all flex items-center space-x-2"
           >
             <Check className="w-4 h-4" />
-            <span>Save Email Forwarding Configuration</span>
+            <span>{isDe ? 'Weiterleitungs-Konfiguration speichern' : 'Save Email Forwarding Configuration'}</span>
           </button>
         </div>
       </form>
@@ -316,10 +330,10 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
           <div>
             <h3 className="font-bold text-base flex items-center space-x-2">
               <FileCheck className="w-5 h-5 text-red-500" />
-              <span>CEO Forwarded Email & Invoice History</span>
+              <span>{isDe ? 'Verlauf weitergeleiteter E-Mails & Rechnungen' : 'CEO Forwarded Email & Invoice History'}</span>
             </h3>
             <p className={`text-xs ${isNightShift ? 'text-slate-400' : 'text-slate-600'}`}>
-              Immutable log of all invoices and completed order receipts delivered to {ceoEmail}
+              {isDe ? `Protokoll aller zugestellten Belege an ${ceoEmail}` : `Immutable log of all invoices and completed order receipts delivered to ${ceoEmail}`}
             </p>
           </div>
 
@@ -330,7 +344,7 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
                 filterType === 'ALL' ? 'bg-red-600 text-white shadow-sm' : 'text-slate-600 dark:text-slate-400'
               }`}
             >
-              All ({logs.length})
+              {isDe ? 'Alle' : 'All'} ({logs.length})
             </button>
             <button
               onClick={() => setFilterType('COMPLETED_ORDER')}
@@ -338,7 +352,7 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
                 filterType === 'COMPLETED_ORDER' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 dark:text-slate-400'
               }`}
             >
-              Completed Orders
+              {isDe ? 'Zustellungen' : 'Completed Orders'}
             </button>
             <button
               onClick={() => setFilterType('INVOICE')}
@@ -346,7 +360,7 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
                 filterType === 'INVOICE' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 dark:text-slate-400'
               }`}
             >
-              Invoices
+              {isDe ? 'Rechnungen' : 'Invoices'}
             </button>
           </div>
         </div>
@@ -358,20 +372,20 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
               isNightShift ? 'bg-slate-950 border-slate-800 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600'
             }`}>
               <tr>
-                <th className="p-3">Type</th>
-                <th className="p-3">Subject & Recipient</th>
-                <th className="p-3">Ref / Invoice #</th>
-                <th className="p-3">Amount (EUR)</th>
-                <th className="p-3">Attachments</th>
-                <th className="p-3">Sent Time</th>
-                <th className="p-3 text-right">Actions</th>
+                <th className="p-3">{isDe ? 'Typ' : 'Type'}</th>
+                <th className="p-3">{isDe ? 'Betreff & Empfänger' : 'Subject & Recipient'}</th>
+                <th className="p-3">{isDe ? 'Referenz-Nr.' : 'Ref / Invoice #'}</th>
+                <th className="p-3">{isDe ? 'Betrag (EUR)' : 'Amount (EUR)'}</th>
+                <th className="p-3">{isDe ? 'Anhänge' : 'Attachments'}</th>
+                <th className="p-3">{isDe ? 'Sendezeit' : 'Sent Time'}</th>
+                <th className="p-3 text-right">{isDe ? 'Aktionen' : 'Actions'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
               {filteredLogs.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="p-6 text-center text-slate-500 text-xs">
-                    No forwarded emails match the selected filter.
+                    {isDe ? 'Keine weitergeleiteten E-Mails für diesen Filter vorhanden.' : 'No forwarded emails match the selected filter.'}
                   </td>
                 </tr>
               ) : (
@@ -393,7 +407,7 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
 
                     <td className="p-3 max-w-xs truncate font-medium">
                       <div className="font-bold text-slate-900 dark:text-white truncate">{log.subject}</div>
-                      <div className="text-[10px] text-slate-500 truncate">To: {log.recipientEmail} {log.ccEmail && `(CC: ${log.ccEmail})`}</div>
+                      <div className="text-[10px] text-slate-500 truncate">{isDe ? 'An:' : 'To:'} {log.recipientEmail} {log.ccEmail && `(CC: ${log.ccEmail})`}</div>
                     </td>
 
                     <td className="p-3 font-mono font-bold text-red-500">
@@ -407,12 +421,12 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
                     <td className="p-3">
                       <div className="flex items-center space-x-1 text-[11px] text-slate-500">
                         <Paperclip className="w-3 h-3 text-red-500" />
-                        <span>{log.attachments.length} PDFs</span>
+                        <span>{log.attachments.length} {isDe ? 'Dokument(e)' : 'PDFs'}</span>
                       </div>
                     </td>
 
                     <td className="p-3 text-slate-500 text-[11px]">
-                      {new Date(log.sentAt).toLocaleString('de-DE')}
+                      {new Date(log.sentAt).toLocaleString(isDe ? 'de-DE' : 'en-US')}
                     </td>
 
                     <td className="p-3 text-right">
@@ -421,7 +435,7 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
                         className="bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-900 dark:text-white px-2.5 py-1 rounded-lg text-xs font-bold transition-all inline-flex items-center space-x-1"
                       >
                         <Eye className="w-3.5 h-3.5 text-red-500" />
-                        <span>Preview</span>
+                        <span>{isDe ? 'Vorschau' : 'Preview'}</span>
                       </button>
                     </td>
                   </tr>
@@ -442,7 +456,7 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
             <div className="flex items-center justify-between border-b pb-3 border-slate-200 dark:border-slate-800">
               <div className="flex items-center space-x-2">
                 <Mail className="w-5 h-5 text-red-500" />
-                <h3 className="font-bold text-base">CEO Forwarded Email Preview</h3>
+                <h3 className="font-bold text-base">{isDe ? 'E-Mail-Vorschau Geschäftsleitung' : 'CEO Forwarded Email Preview'}</h3>
               </div>
               <button
                 onClick={() => setSelectedLogForPreview(null)}
@@ -455,11 +469,11 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
             {/* Email Meta Card */}
             <div className="bg-slate-100 dark:bg-slate-950 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs space-y-1.5 font-mono">
               <div className="flex justify-between">
-                <span className="text-slate-500">From:</span>
+                <span className="text-slate-500">{isDe ? 'Von:' : 'From:'}</span>
                 <span className="font-bold text-slate-900 dark:text-white">MediGo Dispatch System &lt;noreply@medigo-logistics.de&gt;</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">To:</span>
+                <span className="text-slate-500">{isDe ? 'An:' : 'To:'}</span>
                 <span className="font-bold text-red-500">{selectedLogForPreview.recipientEmail}</span>
               </div>
               {selectedLogForPreview.ccEmail && (
@@ -469,11 +483,11 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
                 </div>
               )}
               <div className="flex justify-between">
-                <span className="text-slate-500">Subject:</span>
+                <span className="text-slate-500">{isDe ? 'Betreff:' : 'Subject:'}</span>
                 <span className="font-bold text-slate-900 dark:text-white">{selectedLogForPreview.subject}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Sent At:</span>
+                <span className="text-slate-500">{isDe ? 'Gesendet am:' : 'Sent At:'}</span>
                 <span className="text-slate-400">{new Date(selectedLogForPreview.sentAt).toString()}</span>
               </div>
             </div>
@@ -486,7 +500,7 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
               </div>
 
               <p className="font-semibold text-slate-800 dark:text-slate-200">
-                Dear {ceoName || 'Executive'},
+                {isDe ? `Sehr geehrte(r) ${ceoName || 'Geschäftsleitung'},` : `Dear ${ceoName || 'Executive'},`}
               </p>
 
               <p className="text-slate-600 dark:text-slate-300">
@@ -496,23 +510,23 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
               {/* Order/Invoice details table */}
               <div className="p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 space-y-1">
                 <div className="font-bold text-slate-900 dark:text-white border-b pb-1 mb-1">
-                  Summary & Tax Breakdown
+                  {isDe ? 'Übersicht & Steueraufschlüsselung' : 'Summary & Tax Breakdown'}
                 </div>
                 {selectedLogForPreview.orderTrackingNumber && (
                   <div className="flex justify-between">
-                    <span>Tracking Reference:</span>
+                    <span>{isDe ? 'Tracking-Referenz:' : 'Tracking Reference:'}</span>
                     <span className="font-mono font-bold text-red-500">{selectedLogForPreview.orderTrackingNumber}</span>
                   </div>
                 )}
                 {selectedLogForPreview.invoiceNumber && (
                   <div className="flex justify-between">
-                    <span>Invoice Reference:</span>
+                    <span>{isDe ? 'Rechnungsnummer:' : 'Invoice Reference:'}</span>
                     <span className="font-mono font-bold text-blue-500">{selectedLogForPreview.invoiceNumber}</span>
                   </div>
                 )}
                 {selectedLogForPreview.amountEur && (
                   <div className="flex justify-between font-bold text-sm text-slate-900 dark:text-white pt-1 border-t border-slate-200 dark:border-slate-800">
-                    <span>Total Amount (MwSt incl.):</span>
+                    <span>{isDe ? 'Gesamtbetrag (inkl. 19% MwSt.):' : 'Total Amount (MwSt incl.):'}</span>
                     <span>€{selectedLogForPreview.amountEur.toFixed(2)}</span>
                   </div>
                 )}
@@ -523,7 +537,7 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
                 <div className="pt-2">
                   <div className="font-bold text-[11px] text-slate-500 mb-1 flex items-center space-x-1">
                     <Paperclip className="w-3 h-3 text-red-500" />
-                    <span>Attached Official PDF Documents:</span>
+                    <span>{isDe ? 'Beigefügte offizielle PDF-Dokumente:' : 'Attached Official PDF Documents:'}</span>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {selectedLogForPreview.attachments.map((att, idx) => (
@@ -542,7 +556,7 @@ export const EmailForwardingManager: React.FC<EmailForwardingManagerProps> = ({ 
                 onClick={() => setSelectedLogForPreview(null)}
                 className="bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs px-5 py-2 rounded-xl"
               >
-                Close Preview
+                {isDe ? 'Schließen' : 'Close Preview'}
               </button>
             </div>
 

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Smartphone, Monitor, Download, Apple, Chrome, CheckCircle2, Copy, Share2, Globe, Sparkles, X, ShieldCheck, Server } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 interface MobileInstallGuideModalProps {
   isOpen: boolean;
@@ -7,6 +8,9 @@ interface MobileInstallGuideModalProps {
 }
 
 export const MobileInstallGuideModal: React.FC<MobileInstallGuideModalProps> = ({ isOpen, onClose }) => {
+  const { language } = useLanguage();
+  const isDe = language === 'de';
+
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [activePlatformTab, setActivePlatformTab] = useState<'ANDROID' | 'IOS' | 'CAPACITOR_EXPORT' | 'HOSTING'>('HOSTING');
 
@@ -31,8 +35,12 @@ export const MobileInstallGuideModal: React.FC<MobileInstallGuideModalProps> = (
               <Smartphone className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="font-bold text-base text-white">MediGo Hessen — Hosting, Mobile & Store Packaging</h3>
-              <p className="text-xs text-slate-400">Hosting steps, PWA installation & publishing to Play Store / App Store</p>
+              <h3 className="font-bold text-base text-white">
+                {isDe ? 'MediGo Hessen — Hosting, Mobile App & Store-Veröffentlichung' : 'MediGo Hessen — Hosting, Mobile & Store Packaging'}
+              </h3>
+              <p className="text-xs text-slate-400">
+                {isDe ? 'Hosting-Schritte, PWA-Installation & Play Store / App Store Veröffentlichung' : 'Hosting steps, PWA installation & publishing to Play Store / App Store'}
+              </p>
             </div>
           </div>
 
@@ -46,7 +54,9 @@ export const MobileInstallGuideModal: React.FC<MobileInstallGuideModalProps> = (
           
           {/* Web App Share Bar */}
           <div className="bg-slate-950 border border-slate-800 p-3.5 rounded-xl space-y-2">
-            <span className="text-xs font-bold text-white block">Current MediGo App URL</span>
+            <span className="text-xs font-bold text-white block">
+              {isDe ? 'Aktuelle MediGo Web-Adresse' : 'Current MediGo App URL'}
+            </span>
             <div className="flex items-center space-x-2">
               <input
                 type="text"
@@ -59,7 +69,7 @@ export const MobileInstallGuideModal: React.FC<MobileInstallGuideModalProps> = (
                 className="bg-red-600 hover:bg-red-500 text-white font-bold px-4 py-2 rounded-lg flex items-center space-x-1.5 transition-all shrink-0 min-h-[40px]"
               >
                 {copiedUrl ? <CheckCircle2 className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                <span>{copiedUrl ? 'Copied!' : 'Copy Link'}</span>
+                <span>{copiedUrl ? (isDe ? 'Kopiert!' : 'Copied!') : (isDe ? 'Link kopieren' : 'Copy Link')}</span>
               </button>
             </div>
           </div>

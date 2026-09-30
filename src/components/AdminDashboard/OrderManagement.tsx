@@ -3,6 +3,7 @@ import { Order, OrderStatus, TransportType, TRANSPORT_TEMP_RANGES } from '../../
 import { generateChainOfCustodyPDF } from '../../lib/pdfGenerator';
 import { Plus, Filter, Search, Download, Eye, Thermometer, ShieldCheck, Truck, Clock, QrCode } from 'lucide-react';
 import { OrderQRCodeModal } from './OrderQRCodeModal';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface OrderManagementProps {
   orders: Order[];
@@ -15,6 +16,9 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
   onCreateOrder,
   onSelectOrder,
 }) => {
+  const { language, t } = useLanguage();
+  const isDe = language === 'de';
+
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [transportFilter, setTransportFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -22,14 +26,14 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
   const [qrModalOrder, setQrModalOrder] = useState<Order | null>(null);
 
   // Form state
-  const [pickupClinic, setPickupClinic] = useState('Charité Berlin - Campus Virchow');
-  const [pickupAddr, setPickupAddr] = useState('Augustenburger Platz 1, 13353 Berlin');
-  const [deliveryLab, setDeliveryLab] = useState('Labor Berlin GmbH');
-  const [deliveryAddr, setDeliveryAddr] = useState('Sylter Straße 2, 13353 Berlin');
+  const [pickupClinic, setPickupClinic] = useState(isDe ? 'Universitätsklinikum Frankfurt' : 'Universitätsklinikum Frankfurt');
+  const [pickupAddr, setPickupAddr] = useState('Theodor-Stern-Kai 7, 60590 Frankfurt am Main');
+  const [deliveryLab, setDeliveryLab] = useState(isDe ? 'Bios Laborzentrum Wiesbaden' : 'Bios Laborzentrum Wiesbaden');
+  const [deliveryAddr, setDeliveryAddr] = useState('Hagenauer Str. 47, 65203 Wiesbaden');
   const [transportType, setTransportType] = useState<TransportType>('REFRIGERATED_2_8C');
-  const [sampleCategory, setSampleCategory] = useState('UN 3373 Biological Substance Category B (Blood/Serum)');
+  const [sampleCategory, setSampleCategory] = useState(isDe ? 'UN 3373 Biologischer Stoff Kategorie B (Blut/Serum)' : 'UN 3373 Biological Substance Category B (Blood/Serum)');
   const [boxCount, setBoxCount] = useState(2);
-  const [barcodes, setBarcodes] = useState('SPEC-BER-9902-A, SPEC-BER-9902-B');
+  const [barcodes, setBarcodes] = useState('SPEC-WI-9902-A, SPEC-WI-9902-B');
 
   const filteredOrders = orders.filter((o) => {
     if (statusFilter !== 'ALL' && o.status !== statusFilter) return false;
@@ -75,6 +79,8 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
         return 'bg-emerald-950/80 text-emerald-300 border-emerald-700';
       case 'CANCELLED':
         return 'bg-rose-950/80 text-rose-300 border-rose-700';
+      default:
+        return 'bg-slate-800 text-slate-300 border-slate-700';
     }
   };
 
@@ -86,9 +92,9 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
         <div>
           <h2 className="text-lg font-bold text-white flex items-center space-x-2">
             <Truck className="w-5 h-5 text-emerald-400" />
-            <span>UN 3373 Dispatch & Order Control</span>
+            <span>{isDe ? 'UN 3373 Leitstand & Auftragssteuerung' : 'UN 3373 Dispatch & Order Control'}</span>
           </h2>
-          <p className="text-xs text-slate-400">German Medical Specimen Transport Management</p>
+          <p className="text-xs text-slate-400">{isDe ? 'Medizinisches Probentransport-Management für Hessen & Deutschland' : 'German Medical Specimen Transport Management'}</p>
         </div>
 
         <button
@@ -96,7 +102,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
           className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs px-3.5 py-2 rounded-lg flex items-center space-x-1.5 shadow-md transition-all self-start md:self-auto"
         >
           <Plus className="w-4 h-4" />
-          <span>Schedule UN 3373 Transport</span>
+          <span>{isDe ? 'Neuen Probenauftrag erfassen' : 'Schedule UN 3373 Transport'}</span>
         </button>
       </div>
 
@@ -108,7 +114,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search tracking, clinic or lab..."
+            placeholder={isDe ? 'Tracking-Nr., Klinik oder Labor suchen...' : 'Search tracking, clinic or lab...'}
             className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-white focus:outline-none focus:border-emerald-500"
           />
         </div>
@@ -120,13 +126,13 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
             onChange={(e) => setStatusFilter(e.target.value)}
             className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-white focus:outline-none"
           >
-            <option value="ALL">All Statuses</option>
-            <option value="SCHEDULED">1. Scheduled</option>
-            <option value="PRE_TRIP_CHECK">2. Pre-Trip Check</option>
-            <option value="PICKED_UP">3. Picked Up</option>
-            <option value="IN_TRANSIT">4. In Transit</option>
-            <option value="DELIVERED">5. Delivered</option>
-            <option value="CANCELLED">Cancelled</option>
+            <option value="ALL">{isDe ? 'Alle Status' : 'All Statuses'}</option>
+            <option value="SCHEDULED">{t('status.SCHEDULED')}</option>
+            <option value="PRE_TRIP_CHECK">{t('status.PRE_TRIP_CHECK')}</option>
+            <option value="PICKED_UP">{t('status.PICKED_UP')}</option>
+            <option value="IN_TRANSIT">{t('status.IN_TRANSIT')}</option>
+            <option value="DELIVERED">{t('status.DELIVERED')}</option>
+            <option value="CANCELLED">{t('status.CANCELLED')}</option>
           </select>
         </div>
 
@@ -136,10 +142,10 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
             onChange={(e) => setTransportFilter(e.target.value)}
             className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-white focus:outline-none"
           >
-            <option value="ALL">All Transport Types</option>
-            <option value="AMBIENT_15_25C">Ambient (15-25°C)</option>
-            <option value="REFRIGERATED_2_8C">Cold Chain (2-8°C)</option>
-            <option value="FROZEN_MINUS_20C">Frozen (-20°C)</option>
+            <option value="ALL">{isDe ? 'Alle Transportarten' : 'All Transport Types'}</option>
+            <option value="AMBIENT_15_25C">{t('transport.AMBIENT_15_25C')}</option>
+            <option value="REFRIGERATED_2_8C">{t('transport.REFRIGERATED_2_8C')}</option>
+            <option value="FROZEN_MINUS_20C">{t('transport.FROZEN_DRY_ICE')}</option>
           </select>
         </div>
       </div>
@@ -149,20 +155,20 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
         <table className="w-full text-left text-xs">
           <thead className="bg-slate-950 text-slate-400 font-semibold border-b border-slate-800 uppercase tracking-wider text-[11px]">
             <tr>
-              <th className="p-3">Tracking / Specimen</th>
-              <th className="p-3">Origin Clinic</th>
-              <th className="p-3">Destination Lab</th>
-              <th className="p-3">Transport Spec</th>
-              <th className="p-3">Status</th>
-              <th className="p-3">Driver / Vehicle</th>
-              <th className="p-3 text-right">Actions</th>
+              <th className="p-3">{isDe ? 'Tracking / Probe' : 'Tracking / Specimen'}</th>
+              <th className="p-3">{isDe ? 'Abhol-Klinik' : 'Origin Clinic'}</th>
+              <th className="p-3">{isDe ? 'Ziel-Labor' : 'Destination Lab'}</th>
+              <th className="p-3">{isDe ? 'Kühlkette' : 'Transport Spec'}</th>
+              <th className="p-3">{isDe ? 'Status' : 'Status'}</th>
+              <th className="p-3">{isDe ? 'Kurier / Fahrzeug' : 'Driver / Vehicle'}</th>
+              <th className="p-3 text-right">{isDe ? 'Aktionen' : 'Actions'}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60 font-medium">
             {filteredOrders.length === 0 ? (
               <tr>
                 <td colSpan={7} className="p-8 text-center text-slate-500 italic">
-                  No medical transport orders found matching query.
+                  {isDe ? 'Keine Probenaufträge für diesen Filter gefunden.' : 'No medical transport orders found matching query.'}
                 </td>
               </tr>
             ) : (
@@ -177,56 +183,65 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
 
                     <td className="p-3">
                       <span className="font-semibold text-slate-200 block">{ord.pickupClinicName}</span>
-                      <span className="text-[11px] text-slate-400">{ord.pickupDepartment || 'Central Ward'}</span>
+                      <span className="text-[11px] text-slate-400">{ord.pickupDepartment || (isDe ? 'Zentralstation' : 'Central Ward')}</span>
                     </td>
 
                     <td className="p-3">
                       <span className="font-semibold text-slate-200 block">{ord.deliveryLabName}</span>
-                      <span className="text-[11px] text-slate-400">{ord.deliveryDepartment || 'Pathology'}</span>
+                      <span className="text-[11px] text-slate-400">{ord.deliveryAddress}</span>
                     </td>
 
                     <td className="p-3">
-                      <span className="flex items-center space-x-1 text-slate-300">
-                        <Thermometer className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>{tempRange.label}</span>
+                      <div className="flex items-center space-x-1.5">
+                        <Thermometer className="w-3.5 h-3.5 text-cyan-400" />
+                        <span className="font-mono">{tempRange ? tempRange.label : ord.transportType}</span>
+                      </div>
+                      <span className="text-[10px] text-slate-500 font-mono block">
+                        {ord.specimenBoxCount} {isDe ? 'P650 Box(en)' : 'P650 Box(es)'}
                       </span>
                     </td>
 
                     <td className="p-3">
-                      <span className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-semibold border ${getStatusBadgeClass(ord.status)}`}>
-                        {ord.status}
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${getStatusBadgeClass(
+                          ord.status
+                        )}`}
+                      >
+                        {t(`status.${ord.status}`)}
                       </span>
                     </td>
 
-                    <td className="p-3">
-                      <span className="text-slate-300 block">{ord.driverName || 'Unassigned'}</span>
-                      <span className="text-[11px] text-slate-500">{ord.vehicleRegNumber || 'Van Fleet'}</span>
+                    <td className="p-3 font-mono text-[11px]">
+                      <span className="text-slate-200 block font-semibold">{ord.driverName || (isDe ? 'Nicht zugewiesen' : 'Unassigned')}</span>
+                      <span className="text-slate-400">{ord.vehicleReg || 'WI-MG 7741'}</span>
                     </td>
 
-                    <td className="p-3 text-right space-x-1">
-                      <button
-                        onClick={() => setQrModalOrder(ord)}
-                        className="bg-slate-800 hover:bg-slate-700 text-cyan-400 p-1.5 rounded border border-slate-700 transition-all"
-                        title="Generate Order QR Code & Sticker"
-                      >
-                        <QrCode className="w-3.5 h-3.5" />
-                      </button>
+                    <td className="p-3 text-right">
+                      <div className="flex items-center justify-end space-x-1.5">
+                        <button
+                          onClick={() => onSelectOrder(ord)}
+                          className="bg-slate-800 hover:bg-slate-700 text-slate-200 p-1.5 rounded border border-slate-700 transition-colors"
+                          title={isDe ? 'Auf Live-Karte verfolgen' : 'Track on Live Map'}
+                        >
+                          <Eye className="w-3.5 h-3.5 text-cyan-400" />
+                        </button>
+                        
+                        <button
+                          onClick={() => setQrModalOrder(ord)}
+                          className="bg-slate-800 hover:bg-slate-700 text-slate-200 p-1.5 rounded border border-slate-700 transition-colors"
+                          title={isDe ? 'QR-Code anzeigen' : 'Show QR Code'}
+                        >
+                          <QrCode className="w-3.5 h-3.5 text-emerald-400" />
+                        </button>
 
-                      <button
-                        onClick={() => onSelectOrder(ord)}
-                        className="bg-slate-800 hover:bg-slate-700 text-slate-200 p-1.5 rounded border border-slate-700 transition-all"
-                        title="View Full Details"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        onClick={() => generateChainOfCustodyPDF(ord)}
-                        className="bg-slate-800 hover:bg-slate-700 text-emerald-400 p-1.5 rounded border border-slate-700 transition-all"
-                        title="Download Chain of Custody PDF"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                      </button>
+                        <button
+                          onClick={() => generateChainOfCustodyPDF(ord)}
+                          className="bg-slate-800 hover:bg-slate-700 text-slate-200 p-1.5 rounded border border-slate-700 transition-colors"
+                          title={isDe ? 'PDF Kettennachweis exportieren' : 'Download Chain of Custody PDF'}
+                        >
+                          <Download className="w-3.5 h-3.5 text-emerald-400" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -236,18 +251,27 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
         </table>
       </div>
 
-      {/* Schedule Order Modal */}
+      {/* New Order Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg p-5 space-y-4 text-xs text-slate-100 shadow-2xl my-auto">
-            <h3 className="text-base font-bold text-white border-b border-slate-800 pb-2">
-              Schedule UN 3373 Category B Transport Order
-            </h3>
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg p-5 space-y-4 text-xs shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-sm font-bold text-white flex items-center space-x-2">
+                <Truck className="w-4 h-4 text-emerald-400" />
+                <span>{isDe ? 'Neuen Probenauftrag erfassen (UN 3373)' : 'Schedule New Medical Transport Order'}</span>
+              </h3>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
 
             <form onSubmit={handleCreateSubmit} className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-slate-300 font-medium">Origin Clinic Name</label>
+                  <label className="text-slate-300 font-medium">{isDe ? 'Abhol-Klinik' : 'Pickup Clinic'}</label>
                   <input
                     type="text"
                     required
@@ -258,7 +282,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-slate-300 font-medium">Pickup Address (Germany)</label>
+                  <label className="text-slate-300 font-medium">{isDe ? 'Abhol-Adresse' : 'Pickup Address'}</label>
                   <input
                     type="text"
                     required
@@ -271,7 +295,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-slate-300 font-medium">Destination Laboratory</label>
+                  <label className="text-slate-300 font-medium">{isDe ? 'Ziel-Labor' : 'Delivery Lab'}</label>
                   <input
                     type="text"
                     required
@@ -282,7 +306,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-slate-300 font-medium">Delivery Address</label>
+                  <label className="text-slate-300 font-medium">{isDe ? 'Ziel-Adresse' : 'Delivery Address'}</label>
                   <input
                     type="text"
                     required
@@ -295,20 +319,20 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-slate-300 font-medium">Transport Temperature Specification</label>
+                  <label className="text-slate-300 font-medium">{isDe ? 'Temperaturvorgabe' : 'Transport Temperature Specification'}</label>
                   <select
                     value={transportType}
                     onChange={(e) => setTransportType(e.target.value as TransportType)}
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-white"
                   >
-                    <option value="REFRIGERATED_2_8C">Cold Chain (2°C to 8°C)</option>
-                    <option value="AMBIENT_15_25C">Ambient (15°C to 25°C)</option>
-                    <option value="FROZEN_MINUS_20C">Frozen (-20°C Dry Ice)</option>
+                    <option value="REFRIGERATED_2_8C">{isDe ? 'Gekühlt (2°C bis 8°C)' : 'Cold Chain (2°C to 8°C)'}</option>
+                    <option value="AMBIENT_15_25C">{isDe ? 'Raumtemperatur (15°C bis 25°C)' : 'Ambient (15°C to 25°C)'}</option>
+                    <option value="FROZEN_MINUS_20C">{isDe ? 'Gefroren (-20°C Trockeneis)' : 'Frozen (-20°C Dry Ice)'}</option>
                   </select>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-slate-300 font-medium">Box Count</label>
+                  <label className="text-slate-300 font-medium">{isDe ? 'Anzahl Boxen' : 'Box Count'}</label>
                   <input
                     type="number"
                     min={1}
@@ -320,7 +344,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
               </div>
 
               <div className="space-y-1">
-                <label className="text-slate-300 font-medium">Specimen Category</label>
+                <label className="text-slate-300 font-medium">{isDe ? 'Probenkategorie' : 'Specimen Category'}</label>
                 <input
                   type="text"
                   required
@@ -331,7 +355,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
               </div>
 
               <div className="space-y-1">
-                <label className="text-slate-300 font-medium">Barcodes (Comma Separated)</label>
+                <label className="text-slate-300 font-medium">{isDe ? 'Barcodes (kommagetrennt)' : 'Barcodes (Comma Separated)'}</label>
                 <input
                   type="text"
                   value={barcodes}
@@ -346,13 +370,13 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                   onClick={() => setIsModalOpen(false)}
                   className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700"
                 >
-                  Cancel
+                  {isDe ? 'Abbrechen' : 'Cancel'}
                 </button>
                 <button
                   type="submit"
                   className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
                 >
-                  Confirm Transport Order
+                  {isDe ? 'Auftrag verbindlich anlegen' : 'Confirm Transport Order'}
                 </button>
               </div>
             </form>

@@ -2,6 +2,13 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import { dbService } from './db';
+import { prisma, isPrismaAvailable } from './prisma';
+import {
+  TransitionOrderSchema,
+  OfflineSyncItemSchema,
+  CreateOrderSchema,
+  CreateUserSchema,
+} from './validation';
 import {
   comparePassword,
   generateToken,
@@ -105,10 +112,17 @@ CREATE TABLE IF NOT EXISTS public.orders (
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
-ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.orders DISABLE ROW LEVEL SECURITY;
-GRANT ALL ON public.users TO postgres, anon, authenticated, service_role;
-GRANT ALL ON public.orders TO postgres, anon, authenticated, service_role;
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'service_role_full_access_users') THEN
+    CREATE POLICY service_role_full_access_users ON public.users FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'service_role_full_access_orders') THEN
+    CREATE POLICY service_role_full_access_orders ON public.orders FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+END $$;
 `);
 });
 
@@ -158,7 +172,13 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(403).json({ message: 'Account is deactivated. Please contact your dispatch administrator.' });
     }
 
-    const isMatch = await comparePassword(password, userWithHash.passwordHash);
+    const passwordHash = userWithHash.passwordHash || (userWithHash as any).password;
+    if (!passwordHash) {
+      console.warn(`[Auth] No password hash found for user ${userWithHash.email}`);
+      return res.status(401).json({ message: 'Invalid email or password.' });
+    }
+
+    const isMatch = await comparePassword(password, passwordHash);
     if (!isMatch) {
       const { attemptsLeft, locked } = recordFailedLogin(trimmedEmail);
       await dbService.createAuditLog({
@@ -240,11 +260,14 @@ app.get('/api/users', requireAuth, async (req: AuthenticatedRequest, res) => {
 // POST Create User
 app.post('/api/users', requireAdmin, async (req: AuthenticatedRequest, res) => {
   try {
-    const payload = req.body;
-
-    if (!payload.email || !payload.name || !payload.role || !payload.password) {
-      return res.status(400).json({ message: 'Missing required fields: email, name, role, password' });
+    const parseResult = CreateUserSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({
+        message: 'Validation failed for new user payload.',
+        errors: parseResult.error.flatten(),
+      });
     }
+    const payload = parseResult.data;
 
     if (['CLIENT_CLINIC', 'LAB_STAFF'].includes(payload.role) && !payload.contractNumber) {
       return res.status(400).json({
@@ -415,20 +438,45 @@ app.get('/api/orders/:id', requireAuth, async (req: AuthenticatedRequest, res) =
   }
 });
 
-// POST Create Order (Clinic / Dispatcher / Admin)
-app.post('/api/orders', requireRole('ADMIN', 'DISPATCHER', 'CLIENT_CLINIC'), async (req: AuthenticatedRequest, res) => {
+// POST Create Order (Clinic / Org Staff / Dispatcher / Admin)
+app.post('/api/orders', requireRole('ADMIN', 'DISPATCHER', 'CLIENT_CLINIC', 'ORG_STAFF'), async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
-    const newOrderData = req.body;
+    const parseResult = CreateOrderSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({
+        message: 'Validation failed for order creation payload.',
+        errors: parseResult.error.flatten(),
+      });
+    }
+    const newOrderData = parseResult.data as any;
 
-    // Least Privilege: Prevent client clinics from spoofing orders for other healthcare facilities
-    if (user.role === 'CLIENT_CLINIC') {
+    // Least Privilege: Prevent client clinics or org staff from spoofing orders for other healthcare facilities
+    if (user.role === 'CLIENT_CLINIC' || user.role === 'ORG_STAFF') {
       newOrderData.createdById = user.id;
       newOrderData.createdByOrg = user.organization || newOrderData.createdByOrg || user.name;
+      if (user.organizationId) {
+        newOrderData.originOrganizationId = user.organizationId;
+      }
       if (user.organization) {
         newOrderData.pickupClinicName = user.organization;
       }
     }
+
+    if (!newOrderData.id) {
+      newOrderData.id = `ORD-DE-${Date.now().toString().slice(-4)}`;
+    }
+    if (!newOrderData.trackingNumber) {
+      newOrderData.trackingNumber = `DE-UN3373-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+    }
+    if (!newOrderData.publicAccessToken) {
+      newOrderData.publicAccessToken = `TOK-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+    }
+    if (!newOrderData.status) {
+      newOrderData.status = 'SCHEDULED';
+    }
+    newOrderData.createdAt = new Date().toISOString();
+    newOrderData.updatedAt = newOrderData.createdAt;
 
     const createdOrder = await dbService.createOrder(newOrderData);
 
@@ -446,16 +494,21 @@ app.post('/api/orders', requireRole('ADMIN', 'DISPATCHER', 'CLIENT_CLINIC'), asy
   }
 });
 
-// POST Transition Order Status (Enforces UN 3373 State Machine & Least Privilege)
+// POST Transition Order Status (Enforces UN 3373 State Machine, Quarantine & Least Privilege)
 app.post('/api/orders/:id/transition', requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
     const { id } = req.params;
-    const { targetStatus, context, coords, deviceId } = req.body;
-
-    if (!targetStatus) {
-      return res.status(400).json({ message: 'Target status is required.' });
+    
+    const parseResult = TransitionOrderSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({
+        message: 'Validation failed for status transition payload.',
+        errors: parseResult.error.flatten(),
+      });
     }
+
+    const { targetStatus, context, coords, deviceId } = parseResult.data;
 
     const existingOrder = await dbService.getOrderById(id);
     if (!existingOrder) {
@@ -464,30 +517,26 @@ app.post('/api/orders/:id/transition', requireAuth, async (req: AuthenticatedReq
 
     // Role-specific action validation (Principle of Least Privilege)
     if (user.role === 'DRIVER') {
-      // Driver can only transition orders assigned to them or claim scheduled orders
       if (existingOrder.driverId && existingOrder.driverId !== user.id) {
         return res.status(403).json({
           message: 'Access Denied: You cannot transition an order assigned to another courier.',
         });
       }
       if (!existingOrder.driverId && targetStatus === 'PRE_TRIP_CHECK') {
-        // Auto-claim when starting pre-trip check
         existingOrder.driverId = user.id;
         existingOrder.driverName = user.name;
         if (user.vehicleRegNumber) existingOrder.vehicleRegNumber = user.vehicleRegNumber;
       }
-    } else if (user.role === 'CLIENT_CLINIC') {
-      // Clinics can only cancel their own order before it has been picked up
+    } else if (user.role === 'CLIENT_CLINIC' || (user.role === 'ORG_STAFF' && user.facilityType !== 'LABORATORY')) {
       if (targetStatus !== 'CANCELLED') {
         return res.status(403).json({
-          message: 'Client Clinics can only request order cancellation prior to courier pickup.',
+          message: 'Client Clinics and Origin Staff can only request order cancellation prior to courier pickup.',
         });
       }
       if (!canUserAccessOrder(user, existingOrder)) {
         return res.status(403).json({ message: 'Access Denied: Order does not belong to your clinic.' });
       }
-    } else if (user.role === 'LAB_STAFF') {
-      // Lab staff can only sign off on delivery receipt
+    } else if (user.role === 'LAB_STAFF' || (user.role === 'ORG_STAFF' && user.facilityType === 'LABORATORY')) {
       if (targetStatus !== 'DELIVERED') {
         return res.status(403).json({
           message: 'Laboratory staff can only confirm specimen arrival and delivery acceptance.',
@@ -498,8 +547,14 @@ app.post('/api/orders/:id/transition', requireAuth, async (req: AuthenticatedReq
       }
     }
 
+    // Quarantine clearance context for dispatchers
+    const transitionContext = {
+      ...context,
+      dispatcherOverride: (user.role === 'ADMIN' || user.role === 'DISPATCHER') && existingOrder.status === 'QUARANTINED_UNSYNCED',
+    };
+
     // Validate ADR / UN 3373 compliance transition rules
-    const validation = validateStateTransition(existingOrder, targetStatus, context);
+    const validation = validateStateTransition(existingOrder, targetStatus as any, transitionContext as any);
     if (!validation.allowed) {
       return res.status(422).json({
         message: `UN 3373 State Transition Rejected: ${validation.errors.join('; ')}`,
@@ -510,25 +565,47 @@ app.post('/api/orders/:id/transition', requireAuth, async (req: AuthenticatedReq
     }
 
     // Apply status update
-    existingOrder.status = targetStatus;
+    existingOrder.status = targetStatus as any;
     existingOrder.updatedAt = new Date().toISOString();
 
+    if (existingOrder.status !== 'QUARANTINED_UNSYNCED') {
+      existingOrder.quarantineReason = undefined;
+    }
+
     if (context?.preTripCheck) {
-      existingOrder.preTripCheck = context.preTripCheck;
+      existingOrder.preTripCheck = context.preTripCheck as any;
     }
 
     if (context?.pickupSignature) {
       if (!existingOrder.chainOfCustodyLogs) existingOrder.chainOfCustodyLogs = [];
-      existingOrder.chainOfCustodyLogs.push(context.pickupSignature);
+      existingOrder.chainOfCustodyLogs.push({
+        ...context.pickupSignature,
+        id: `COC-${Date.now()}`,
+        orderId: existingOrder.id,
+        timestamp: new Date().toISOString(),
+        gpsLatitude: coords?.lat || 50.1109,
+        gpsLongitude: coords?.lng || 8.6821,
+        gpsAccuracyMeters: coords?.accuracyMeters || 5.0,
+        deviceId: deviceId || 'WEB-CLIENT',
+      } as any);
     }
 
     if (context?.deliverySignature) {
       if (!existingOrder.chainOfCustodyLogs) existingOrder.chainOfCustodyLogs = [];
-      existingOrder.chainOfCustodyLogs.push(context.deliverySignature);
+      existingOrder.chainOfCustodyLogs.push({
+        ...context.deliverySignature,
+        id: `COC-${Date.now()}`,
+        orderId: existingOrder.id,
+        timestamp: new Date().toISOString(),
+        gpsLatitude: coords?.lat || 50.1109,
+        gpsLongitude: coords?.lng || 8.6821,
+        gpsAccuracyMeters: coords?.accuracyMeters || 5.0,
+        deviceId: deviceId || 'WEB-CLIENT',
+      } as any);
     }
 
     if (context?.cancellationReason) {
-      existingOrder.cancellationReason = context.cancellationReason;
+      existingOrder.cancellationReason = context.cancellationReason as any;
     }
 
     const updatedOrder = await dbService.updateOrder(id, existingOrder);
@@ -536,7 +613,7 @@ app.post('/api/orders/:id/transition', requireAuth, async (req: AuthenticatedReq
     await dbService.createAuditLog({
       orderId: id,
       previousState: existingOrder.status,
-      newState: targetStatus,
+      newState: targetStatus as any,
       actionDescription: `STATUS_TRANSITION_TO_${targetStatus}`,
       userId: user.id,
       userName: user.name,
@@ -752,48 +829,134 @@ app.get('/api/audit-logs', requireRole('ADMIN', 'DISPATCHER'), async (req: Authe
 });
 
 // ==========================================
-// OFFLINE QUEUE SYNC ENDPOINT
+// DETERMINISTIC OFFLINE QUEUE SYNC ENDPOINT (/api/v1/sync, /api/sync, /api/sync-offline)
 // ==========================================
-app.post('/api/sync-offline', requireAuth, async (req: AuthenticatedRequest, res) => {
+app.post(['/api/v1/sync', '/api/sync', '/api/sync-offline'], optionalAuth, async (req: AuthenticatedRequest, res) => {
   try {
-    const action: PendingOfflineAction = req.body;
-    if (!action || !action.orderId) {
-      return res.status(400).json({ message: 'Invalid offline payload' });
+    const rawAction = req.body;
+    const parseResult = OfflineSyncItemSchema.safeParse(rawAction);
+    if (!parseResult.success) {
+      return res.status(400).json({
+        message: 'Invalid offline synchronization item payload.',
+        errors: parseResult.error.flatten(),
+      });
     }
 
+    const action = parseResult.data;
     const order = await dbService.getOrderById(action.orderId);
     if (!order) {
-      return res.status(404).json({ message: `Order ${action.orderId} not found` });
+      return res.status(404).json({
+        results: [{ id: action.id, status: 'REJECTED_NOT_FOUND', message: `Order ${action.orderId} not found.` }],
+      });
     }
 
-    if (!canUserAccessOrder(req.user!, order)) {
-      return res.status(403).json({ message: 'Access Denied: You cannot sync actions for this order.' });
+    const nowIso = new Date().toISOString();
+    const clientTime = action.clientRecordedAt || action.timestamp || nowIso;
+
+    // 1. Conflict Check: Stale Sequence Check (REJECTED_STALE)
+    const isStale =
+      (action.actionType === 'PICKUP' && ['IN_TRANSIT', 'DELIVERED', 'CANCELLED'].includes(order.status)) ||
+      (action.actionType === 'PRE_TRIP_CHECK' && order.status !== 'SCHEDULED');
+
+    if (isStale) {
+      await dbService.createAuditLog({
+        orderId: order.id,
+        previousState: order.status,
+        newState: order.status,
+        conflictResolution: 'REJECTED_STALE',
+        actionDescription: `STALE_OFFLINE_ACTION_REJECTED: ${action.actionType} recorded at ${clientTime}`,
+        userId: req.user?.id || 'USR-DRIVER-01',
+        userName: req.user?.name || 'Courier (Offline Queue)',
+        userRole: req.user?.role || 'DRIVER',
+        deviceId: action.deviceId || 'MOB-DRIVER-OFFLINE',
+        gpsLatitude: action.gpsLatitude || 50.1109,
+        gpsLongitude: action.gpsLongitude || 8.6821,
+        offlineSynced: true,
+        syncedAt: nowIso,
+        createdAt: clientTime,
+      });
+
+      return res.status(200).json({
+        results: [
+          {
+            id: action.id,
+            status: 'REJECTED_STALE',
+            serverCurrentStatus: order.status,
+            message: `Aktion ${action.actionType} verworfen: Sendungsstatus am Server ist bereits ${order.status}.`,
+          },
+        ],
+      });
     }
 
+    // 2. Conflict Check: Concurrent Different Driver Collision (QUARANTINED_UNSYNCED)
+    if (order.driverId && req.user?.id && order.driverId !== req.user.id && req.user.role === 'DRIVER') {
+      order.status = 'QUARANTINED_UNSYNCED';
+      order.quarantineReason = `Driver collision: Device ${action.deviceId || 'unknown'} uploaded action while order is claimed by ${order.driverName || order.driverId}.`;
+      order.updatedAt = nowIso;
+      await dbService.updateOrder(order.id, order);
+
+      await dbService.createAuditLog({
+        orderId: order.id,
+        previousState: order.status,
+        newState: 'QUARANTINED_UNSYNCED',
+        conflictResolution: 'SERVER_WINS',
+        actionDescription: `QUARANTINE_TRIGGERED: Driver device mismatch during sync`,
+        userId: req.user.id,
+        userName: req.user.name,
+        userRole: req.user.role,
+        deviceId: action.deviceId || 'MOB-DRIVER-OFFLINE',
+        gpsLatitude: action.gpsLatitude || 50.1109,
+        gpsLongitude: action.gpsLongitude || 8.6821,
+        offlineSynced: true,
+        syncedAt: nowIso,
+        createdAt: clientTime,
+      });
+
+      return res.status(200).json({
+        results: [
+          {
+            id: action.id,
+            status: 'QUARANTINED_UNSYNCED',
+            message: 'Konflikt erkannt: Sendung wurde zur Leitstand-Klärung in Quarantäne verschoben.',
+          },
+        ],
+      });
+    }
+
+    // 3. Append-Only Chain of Custody Record (Never overwrites existing records)
     if (!order.chainOfCustodyLogs) order.chainOfCustodyLogs = [];
     order.chainOfCustodyLogs.push({
       id: `COC-${Date.now()}`,
       orderId: order.id,
       eventType: action.actionType.includes('DELIVER') ? 'DELIVERY_SIGNATURE' : 'PICKUP_SIGNATURE',
+      authTier: 'TIER_1_REGISTERED_USER_PIN',
       staffName: action.payload?.signatoryName || 'Offline Signatory',
       staffTitle: action.payload?.signatoryRole || 'Staff',
-      signatureBase64: action.payload?.signatureDataUrl || '',
+      signatureBase64: action.payload?.signatureDataUrl || action.payload?.signatureBase64 || '',
+      cryptoSignature: action.cryptoSignature || undefined,
       pinCodeVerified: true,
       scannedBarcodes: order.barcodeList || [],
-      timestamp: action.timestamp,
+      timestamp: clientTime,
+      clientRecordedAt: clientTime,
+      serverIngestedAt: nowIso,
       gpsLatitude: action.gpsLatitude || 50.1109,
       gpsLongitude: action.gpsLongitude || 8.6821,
       gpsAccuracyMeters: 5,
       deviceId: action.deviceId || 'MOB-DRIVER-OFFLINE',
     });
 
-    if (!order.auditLogs) order.auditLogs = [];
-    order.auditLogs.push({
-      id: `LOG-${Date.now()}`,
+    // 4. Clean State Transition (SERVER_WINS)
+    const targetStatus = action.actionType === 'PICKUP' ? 'PICKED_UP' : action.actionType === 'DELIVER' ? 'DELIVERED' : order.status;
+    order.status = targetStatus;
+    order.updatedAt = nowIso;
+    await dbService.updateOrder(order.id, order);
+
+    await dbService.createAuditLog({
       orderId: order.id,
       previousState: order.status,
-      newState: order.status,
-      actionDescription: `Synced offline driver action (${action.actionType}) created at ${action.timestamp}.`,
+      newState: targetStatus,
+      conflictResolution: 'SERVER_WINS',
+      actionDescription: `Synced offline driver action (${action.actionType}) recorded at ${clientTime}.`,
       userId: req.user?.id || 'USR-DRIVER-01',
       userName: `${req.user?.name || 'Courier'} (Offline Sync)`,
       userRole: req.user?.role || 'DRIVER',
@@ -801,13 +964,14 @@ app.post('/api/sync-offline', requireAuth, async (req: AuthenticatedRequest, res
       gpsLatitude: action.gpsLatitude || 50.1109,
       gpsLongitude: action.gpsLongitude || 8.6821,
       offlineSynced: true,
-      syncedAt: new Date().toISOString(),
-      createdAt: action.timestamp,
+      syncedAt: nowIso,
+      createdAt: clientTime,
     });
 
-    await dbService.updateOrder(order.id, order);
-
-    res.json({ success: true, message: `Synced offline action ${action.id}` });
+    res.json({
+      success: true,
+      results: [{ id: action.id, status: 'SYNCED', newStatus: targetStatus }],
+    });
   } catch (err: any) {
     res.status(500).json({ message: `Sync error: ${err.message}` });
   }

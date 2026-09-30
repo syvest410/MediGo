@@ -47,37 +47,42 @@ export function canUserAccessOrder(user: TokenPayload, order: Order): boolean {
     return true;
   }
 
-  // 2. Client Clinics: Can ONLY access their own clinic's sample shipments
-  if (user.role === 'CLIENT_CLINIC') {
-    const userOrg = (user.organization || '').toLowerCase().trim();
-    const userEmail = (user.email || '').toLowerCase().trim();
-    const userContract = (user.contractNumber || '').toLowerCase().trim();
+  // 2. Organization Staff (Clinics, Hospitals, Labs, Pharmacies)
+  if (user.role === 'ORG_STAFF' || user.role === 'CLIENT_CLINIC' || user.role === 'LAB_STAFF') {
+    // Primary: Organization ID foreign key match
+    if (user.organizationId) {
+      if (order.originOrganizationId === user.organizationId || order.destinationOrgId === user.organizationId) {
+        return true;
+      }
+    }
 
-    const clinicMatch = userOrg && order.pickupClinicName.toLowerCase().includes(userOrg);
-    const creatorOrgMatch = userOrg && (order.createdByOrg || '').toLowerCase().includes(userOrg);
-    const creatorIdMatch = order.createdById === user.id;
-    const contractMatch = userContract && (order.trackingNumber.toLowerCase().includes(userContract) || (order.specialNotes || '').toLowerCase().includes(userContract));
-
-    return Boolean(clinicMatch || creatorOrgMatch || creatorIdMatch || contractMatch);
-  }
-
-  // 3. Laboratory Staff: Can ONLY access samples routed for delivery to their laboratory
-  if (user.role === 'LAB_STAFF') {
+    // Secondary / Fallback: Organization name and contract matches
     const userOrg = (user.organization || '').toLowerCase().trim();
     const userContract = (user.contractNumber || '').toLowerCase().trim();
 
-    const labMatch = userOrg && order.deliveryLabName.toLowerCase().includes(userOrg);
-    const contractMatch = userContract && ((order.specialNotes || '').toLowerCase().includes(userContract));
-
-    return Boolean(labMatch || contractMatch);
+    if (user.facilityType === 'LABORATORY' || user.role === 'LAB_STAFF') {
+      const labMatch = userOrg && order.deliveryLabName.toLowerCase().includes(userOrg);
+      const contractMatch = userContract && ((order.specialNotes || '').toLowerCase().includes(userContract));
+      return Boolean(labMatch || contractMatch);
+    } else {
+      const clinicMatch = userOrg && order.pickupClinicName.toLowerCase().includes(userOrg);
+      const creatorOrgMatch = userOrg && (order.createdByOrg || '').toLowerCase().includes(userOrg);
+      const creatorIdMatch = order.createdById === user.id;
+      const contractMatch = userContract && (order.trackingNumber.toLowerCase().includes(userContract) || (order.specialNotes || '').toLowerCase().includes(userContract));
+      return Boolean(clinicMatch || creatorOrgMatch || creatorIdMatch || contractMatch);
+    }
   }
 
-  // 4. Drivers / Medical Couriers:
-  // Can access orders assigned to their courier ID, OR unassigned open orders in SCHEDULED status on the job board
+  // 3. Drivers / Medical Couriers:
   if (user.role === 'DRIVER') {
     if (order.driverId === user.id) return true;
     if (!order.driverId && order.status === 'SCHEDULED') return true;
     return false;
+  }
+
+  // 4. Patients:
+  if (user.role === 'PATIENT') {
+    return order.publicAccessToken === user.id || order.trackingNumber === user.id;
   }
 
   return false;
@@ -89,32 +94,45 @@ export function canUserAccessOrder(user: TokenPayload, order: Order): boolean {
  * - Drivers do NOT receive commercial B2B billing tariffs / profit margins.
  * - Laboratories do NOT receive clinic invoice pricing.
  * - Clinics do NOT receive courier internal telemetry mechanics.
+ * - Patients only receive public tracking milestones.
  */
 export function sanitizeOrderForRole(order: Order, role: Role): Order {
   const sanitized: Order = JSON.parse(JSON.stringify(order));
 
   if (role === 'ADMIN' || role === 'DISPATCHER') {
-    // Dispatchers and Administrators retain full administrative visibility
     return sanitized;
   }
 
   if (role === 'DRIVER') {
-    // Least Privilege: Couriers do not require client B2B pricing breakdowns
     delete sanitized.priceBreakdown;
     delete sanitized.calculatedPriceEur;
     return sanitized;
   }
 
   if (role === 'LAB_STAFF') {
-    // Least Privilege: Lab receiving staff do not require commercial tariff negotiations
+    delete sanitized.priceBreakdown;
+    delete sanitized.calculatedPriceEur;
+    return sanitized;
+  }
+
+  if (role === 'ORG_STAFF') {
+    // If staff belongs to lab, strip invoice breakdowns
     delete sanitized.priceBreakdown;
     delete sanitized.calculatedPriceEur;
     return sanitized;
   }
 
   if (role === 'CLIENT_CLINIC') {
-    // Clinics receive sample data, cold chain validation, and their invoice pricing,
-    // but internal driver vehicle calibration internals are minimized
+    return sanitized;
+  }
+
+  if (role === 'PATIENT') {
+    delete sanitized.barcodeList;
+    delete sanitized.specialNotes;
+    delete sanitized.priceBreakdown;
+    delete sanitized.calculatedPriceEur;
+    delete sanitized.driverId;
+    delete sanitized.driverName;
     return sanitized;
   }
 
@@ -123,7 +141,6 @@ export function sanitizeOrderForRole(order: Order, role: Role): Order {
 
 /**
  * Produces sanitized milestone tracking for unauthenticated public inquiries
- * (e.g. recipient checking package arrival without clinical access).
  */
 export function getPublicTrackingMilestones(order: Order): PublicTrackingMilestones {
   const hasTempBreach = order.telemetryLogs?.some(l => l.isBreach) || false;

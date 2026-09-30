@@ -88,12 +88,14 @@ export class OfflineQueueManager {
     payload: any,
     coords: { lat: number; lng: number }
   ): PendingOfflineAction {
+    const nowIso = new Date().toISOString();
     const action: PendingOfflineAction = {
       id: `OFFLINE-ACT-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
       orderId,
       actionType,
       payload,
-      timestamp: new Date().toISOString(),
+      timestamp: nowIso,
+      clientRecordedAt: nowIso,
       gpsLatitude: coords.lat,
       gpsLongitude: coords.lng,
       deviceId: 'MOB-GER-DRIVER-APP-09',
@@ -130,16 +132,42 @@ export class OfflineQueueManager {
 
     const queueCopy = [...this.queue];
 
+    // Read auth token if present in localStorage
+    let token = '';
+    try {
+      const session = localStorage.getItem('medigo_auth_session');
+      if (session) {
+        token = JSON.parse(session).token || '';
+      }
+    } catch {
+      // ignore
+    }
+
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
     for (const action of queueCopy) {
       try {
-        const response = await fetch('/api/sync', {
+        // Post to deterministic /api/v1/sync
+        const response = await fetch('/api/v1/sync', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify(action)
         });
 
         if (response.ok) {
-          syncedIds.push(action.id);
+          const resJson = await response.json();
+          // Check conflict resolution status
+          const firstResult = Array.isArray(resJson.results) ? resJson.results[0] : resJson;
+          if (firstResult?.status === 'REJECTED_STALE') {
+            errors.push(`[Konflikt Stale]: Aktion ${action.actionType} verworfen – Auftrag wurde am Server bereits fortgeführt (${firstResult.serverCurrentStatus}).`);
+            syncedIds.push(action.id); // Remove stale action from local queue
+          } else if (firstResult?.status === 'QUARANTINED_UNSYNCED') {
+            errors.push(`[Quarantäne]: Auftrag ${action.orderId} wurde wegen Geräte-Konflikt in Quarantäne verschoben. Bitte Leitstand kontaktieren.`);
+            syncedIds.push(action.id);
+          } else {
+            syncedIds.push(action.id);
+          }
         } else {
           const errData = await response.json().catch(() => ({ message: 'Server sync error' }));
           action.retryCount++;
@@ -152,7 +180,7 @@ export class OfflineQueueManager {
       }
     }
 
-    // Remove successfully synced items
+    // Remove successfully synced or reconciled items
     if (syncedIds.length > 0) {
       this.queue = this.queue.filter(item => !syncedIds.includes(item.id));
       this.saveQueue();

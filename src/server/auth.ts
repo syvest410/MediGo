@@ -5,6 +5,10 @@ import { User, Role } from '../types';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'medigo-un3373-jwt-secret-key-2026-prod';
 
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+  console.warn('[SECURITY WARNING]: JWT_SECRET environment variable is not defined in production. Using fallback secret.');
+}
+
 export interface TokenPayload {
   id: string;
   email: string;
@@ -12,6 +16,7 @@ export interface TokenPayload {
   role: Role;
   contractNumber?: string;
   organization?: string;
+  organizationId?: string;
   vehicleRegNumber?: string;
   facilityType?: string;
 }
@@ -26,7 +31,15 @@ export async function hashPassword(plainText: string): Promise<string> {
 }
 
 export async function comparePassword(plainText: string, hash: string): Promise<boolean> {
-  return bcrypt.compare(plainText, hash);
+  if (!plainText || !hash || typeof plainText !== 'string' || typeof hash !== 'string') {
+    return false;
+  }
+  try {
+    return await bcrypt.compare(plainText, hash);
+  } catch (err) {
+    console.error('[Auth] Error in comparePassword:', err);
+    return false;
+  }
 }
 
 export function generateToken(user: User): string {
@@ -37,6 +50,7 @@ export function generateToken(user: User): string {
     role: user.role,
     contractNumber: user.contractNumber,
     organization: user.organization,
+    organizationId: user.organizationId,
     vehicleRegNumber: user.vehicleRegNumber,
     facilityType: user.facilityType,
   };

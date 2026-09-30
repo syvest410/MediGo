@@ -1,5 +1,5 @@
 // Prisma Schema for UN 3373 Category B Biological Specimen Logistics
-// Compliance: ADR Packaging Instruction P650 & German Transfusionsgesetz / Medical Logistics Regulations
+// Compliance: ADR Packaging Instruction P650 & German ApBetrO § 17 / Transfusionsgesetz / GDPR Art. 9 & 28
 
 datasource db {
   provider = "postgresql"
@@ -14,8 +14,19 @@ enum Role {
   ADMIN
   DISPATCHER
   DRIVER
-  CLIENT_CLINIC
-  LAB_STAFF
+  ORG_STAFF
+  PATIENT
+  CLIENT_CLINIC // Supported alias for backwards compatibility
+  LAB_STAFF     // Supported alias for backwards compatibility
+}
+
+enum OrganizationType {
+  HOSPITAL
+  CLINIC
+  PHARMACY
+  CARE_HOME
+  LABORATORY
+  INDIVIDUAL_PATIENT
 }
 
 enum TransportType {
@@ -30,6 +41,7 @@ enum OrderStatus {
   PICKED_UP
   IN_TRANSIT
   DELIVERED
+  QUARANTINED_UNSYNCED
   CANCELLED
 }
 
@@ -42,130 +54,222 @@ enum CancelReasonCode {
   OTHER
 }
 
-model User {
-  id            String         @id @default(uuid())
-  email         String         @unique
-  name          String
-  role          Role           @default(DRIVER)
-  phone         String?
-  organization  String?        // e.g., "Charité Berlin - Clinic A" or "MedLogistics GmbH"
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+enum AuthTier {
+  TIER_1_REGISTERED_USER_PIN
+  TIER_2_OTP_VERIFIED
+  TIER_3_SIGNATURE_ONLY
+}
 
-  assignedOrders Order[]       @relation("DriverOrders")
-  createdOrders  Order[]       @relation("CreatedOrders")
-  auditLogs      AuditLog[]
-  preTripChecks  PreTripCheck[]
+enum ConflictResolution {
+  NONE
+  SERVER_WINS
+  REJECTED_STALE
+  MANUAL_RESOLVED
+}
+
+enum SpecimenCategory {
+  UN3373_CATEGORY_B_SPECIMEN
+  PHARMACEUTICAL_APBETRO
+  STEM_CELLS_APHERESIS
+  CRYOPRESERVED_SPECIMEN
+}
+
+model Organization {
+  id             String           @id @default(uuid())
+  name           String
+  type           OrganizationType @default(CLINIC)
+  contractNumber String?          @unique
+  addressStreet  String
+  postalCode     String
+  city           String
+  state          String           @default("HE")
+  contactPhone   String
+  contactEmail   String
+  active         Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  users              User[]
+  originatingOrders  Order[]      @relation("OriginOrganization")
+  destinationOrders  Order[]      @relation("DestinationOrganization")
+
+  @@index([type])
+  @@index([city])
+}
+
+model User {
+  id               String        @id @default(uuid())
+  email            String        @unique
+  name             String
+  role             Role          @default(ORG_STAFF)
+  phone            String?
+  pinCodeHash      String?       // bcrypt hash for online PIN verification
+  devicePublicKey  String?       // ED25519 public key hex for offline cryptographic verification
+  passwordHash     String?
+  active           Boolean       @default(true)
+  
+  organizationId   String?
+  organization     Organization? @relation(fields: [organizationId], references: [id])
+  organizationName String?       // Legacy fallback display
+  facilityType     String?       // "CLINIC" | "LABORATORY" | "HQ" | "COURIER"
+  facilityAddress  String?
+  contractNumber   String?
+  vehicleRegNumber String?       // For driver accounts
+
+  assignedOrders   Order[]       @relation("DriverOrders")
+  createdOrders    Order[]       @relation("CreatedOrders")
+  auditLogs        AuditLog[]
+  preTripChecks    PreTripCheck[]
+
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([organizationId])
+  @@index([role])
 }
 
 model Order {
-  id                   String            @id @default(uuid())
-  trackingNumber       String            @unique // e.g. DE-UN3373-2026-9482
-  status               OrderStatus       @default(SCHEDULED)
-  transportType        TransportType     @default(REFRIGERATED_2_8C)
+  id                    String            @id @default(uuid())
+  trackingNumber        String            @unique // e.g. DE-UN3373-2026-9482
+  publicAccessToken     String            @unique @default(uuid()) // B2C Tokenized tracking without registration
+  status                OrderStatus       @default(SCHEDULED)
+  transportType         TransportType     @default(REFRIGERATED_2_8C)
+  specimenCategory      SpecimenCategory  @default(UN3373_CATEGORY_B_SPECIMEN)
+  sampleCategory        String?           // Human-readable description
   
-  // Addresses & Contacts
-  pickupClinicName     String
-  pickupAddress        String
-  pickupDepartment     String?           // e.g., "Station 4B - Pathology"
-  pickupContactPhone   String
+  // Polymorphic Organization Dual Relations (Strict authorization anchors)
+  originOrganizationId  String?
+  originOrganization    Organization?     @relation("OriginOrganization", fields: [originOrganizationId], references: [id])
+  pickupClinicName      String            // Fallback & display
+  pickupAddress         String
+  pickupDepartment      String?
+  pickupContactPhone    String
   
-  deliveryLabName      String
-  deliveryAddress      String
-  deliveryDepartment   String?           // e.g., "Central Virology Lab - Entrance C"
-  deliveryContactPhone String
+  destinationOrgId      String?
+  destinationOrg        Organization?     @relation("DestinationOrganization", fields: [destinationOrgId], references: [id])
+  deliveryLabName       String            // Fallback & display
+  deliveryAddress       String
+  deliveryDepartment    String?
+  deliveryContactPhone  String
 
-  // Time Window
-  scheduledPickupFrom  DateTime
-  scheduledPickupTo    DateTime
-  scheduledDeliveryBy  DateTime
-
-  // Specimen Metadata (UN 3373 Cat B)
-  sampleCategory       String            // e.g., "UN 3373 Diagnostic Specimen (Blood/Serum)"
-  specimenBoxCount     Int               @default(1)
-  barcodeList          String[]          // Array of scanned barcode strings e.g. ["SPEC-9901-A", "SPEC-9901-B"]
-  specialNotes         String?
-  p650Verified         Boolean           @default(false)
+  // Packaging & Time Window
+  specimenBoxCount      Int               @default(1)
+  barcodeList           String[]
+  scheduledPickupFrom   DateTime
+  scheduledPickupTo     DateTime
+  scheduledDeliveryBy   DateTime
+  specialNotes          String?
+  p650Verified          Boolean           @default(false)
 
   // Driver & Vehicle Assignment
-  driverId             String?
-  driver               User?             @relation("DriverOrders", fields: [driverId], references: [id])
-  createdById          String
-  createdBy            User              @relation("CreatedOrders", fields: [createdById], references: [id])
-  vehicleRegNumber     String?           // e.g., "B-ML 8832 (Thermo Van)"
+  driverId              String?
+  driver                User?             @relation("DriverOrders", fields: [driverId], references: [id])
+  driverName            String?
+  createdById           String
+  createdBy             User              @relation("CreatedOrders", fields: [createdById], references: [id])
+  createdByOrg          String?
+  vehicleRegNumber      String?
+
+  // Conflict, Stale & Quarantine Details
+  quarantineReason      String?
 
   // Cancellation
-  cancellationReason   CancelReasonCode?
-  cancellationNotes    String?
+  cancellationReason    CancelReasonCode?
+  cancellationNotes     String?
 
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @updatedAt
+  // Data Retention & GDPR Legal Basis
+  retentionPolicyId     String?
+  retentionPolicy       RetentionPolicy?  @relation(fields: [retentionPolicyId], references: [id])
+  retentionExpiresAt    DateTime?
+  anonymizedAt          DateTime?
+
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
 
   // Relations
-  preTripCheck         PreTripCheck?
-  chainOfCustodyLogs   ChainOfCustody[]
-  telemetryLogs        TemperatureTelemetry[]
-  auditLogs            AuditLog[]
+  preTripCheck          PreTripCheck?
+  chainOfCustodyLogs    ChainOfCustody[]
+  telemetryLogs         TemperatureTelemetry[]
+  auditLogs             AuditLog[]
 
   @@index([status])
   @@index([trackingNumber])
+  @@index([originOrganizationId])
+  @@index([destinationOrgId])
+  @@index([driverId])
+  @@index([retentionExpiresAt])
+}
+
+model RetentionPolicy {
+  id                       String    @id @default(uuid())
+  code                     String    @unique // e.g. "APBETRO_SEC17_5YR"
+  name                     String
+  retentionPeriodDays      Int       @default(1825) // 5 Years (German ApBetrO standard)
+  legalBasis               String    // e.g. "ApBetrO § 17 Abs. 2 / DSGVO Art. 6 Abs. 1 lit. c"
+  anonymizeInsteadOfDelete Boolean   @default(true)
+  orders                   Order[]
+  createdAt                DateTime  @default(now())
 }
 
 model PreTripCheck {
-  id                            String      @id @default(uuid())
-  orderId                       String      @unique
-  order                         Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  driverId                      String
-  driver                        User        @relation(fields: [driverId], references: [id])
-  vehicleRegNumber              String
+  id                        String    @id @default(uuid())
+  orderId                   String    @unique
+  order                     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  driverId                  String
+  driver                    User      @relation(fields: [driverId], references: [id])
+  vehicleRegNumber          String
   
-  p650OuterPackagingIntact     Boolean     @default(true)
-  primarySecondaryLeakProof     Boolean     @default(true)
-  absorbentMaterialPresent      Boolean     @default(true)
-  tempBoxCalibrated             Boolean     @default(true)
-  initialTempCelsius            Float
-  targetTempMinCelsius          Float
-  targetTempMaxCelsius          Float
+  p650OuterPackagingIntact Boolean   @default(true)
+  primarySecondaryLeakProof Boolean   @default(true)
+  absorbentMaterialPresent  Boolean   @default(true)
+  tempBoxCalibrated         Boolean   @default(true)
+  initialTempCelsius        Float
+  targetTempMinCelsius      Float
+  targetTempMaxCelsius      Float
   
-  inspectedAt                   DateTime    @default(now())
-  driverSignatureBase64         String
-  approved                      Boolean     @default(true)
+  inspectedAt               DateTime  @default(now())
+  driverSignatureBase64     String
+  approved                  Boolean   @default(true)
 }
 
 model ChainOfCustody {
-  id                  String      @id @default(uuid())
+  id                  String    @id @default(uuid())
   orderId             String
-  order               Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  eventType           String      // "PICKUP_SIGNATURE" | "DELIVERY_SIGNATURE"
+  order               Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  eventType           String    // "PICKUP_SIGNATURE" | "DELIVERY_SIGNATURE"
+  authTier            AuthTier  @default(TIER_1_REGISTERED_USER_PIN)
   
   staffName           String
-  staffTitle          String?     // e.g., "Head Nurse", "Lab Receptionist"
-  signatureBase64     String
-  pinCodeVerified     Boolean     @default(false)
+  staffTitle          String?
+  signatureBase64     String?
+  cryptoSignature     String?   // ED25519 signature generated offline or online
+  pinCodeVerified     Boolean   @default(false)
   scannedBarcodes     String[]
   
-  timestamp           DateTime    @default(now())
+  clientRecordedAt    DateTime  @default(now()) // Driver device local hardware clock
+  serverIngestedAt    DateTime  @default(now()) // Authoritative server timestamp
   gpsLatitude         Float
   gpsLongitude        Float
-  gpsAccuracyMeters   Float       @default(5.0)
+  gpsAccuracyMeters   Float     @default(5.0)
   deviceId            String
 
   @@index([orderId])
+  @@index([clientRecordedAt])
 }
 
 model TemperatureTelemetry {
-  id                  String      @id @default(uuid())
+  id                  String    @id @default(uuid())
   orderId             String
-  order               Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  sensorId            String      // e.g., "SENS-ICE-04"
+  order               Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  sensorId            String
   
   tempCelsius         Float
   ambientTempCelsius  Float
   humidityPercent     Float
-  batteryLevelPercent Int         @default(98)
-  isBreach            Boolean     @default(false)
+  batteryLevelPercent Int       @default(98)
+  isBreach            Boolean   @default(false)
   
-  timestamp           DateTime    @default(now())
+  timestamp           DateTime  @default(now())
   gpsLatitude         Float
   gpsLongitude        Float
 
@@ -173,23 +277,22 @@ model TemperatureTelemetry {
 }
 
 model AuditLog {
-  id                  String      @id @default(uuid())
+  id                  String              @id @default(uuid())
   orderId             String
-  order               Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  
+  order               Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
   previousState       OrderStatus?
   newState            OrderStatus
   actionDescription   String
+  conflictResolution  ConflictResolution  @default(NONE)
   userId              String
-  user                User        @relation(fields: [userId], references: [id])
+  user                User                @relation(fields: [userId], references: [id])
   
   deviceId            String
   gpsLatitude         Float
   gpsLongitude        Float
-  offlineSynced       Boolean     @default(false)
+  offlineSynced       Boolean             @default(false)
   syncedAt            DateTime?
-  
-  createdAt           DateTime    @default(now())
+  createdAt           DateTime            @default(now())
 
   @@index([orderId])
 }

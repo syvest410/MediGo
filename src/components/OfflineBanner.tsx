@@ -1,5 +1,6 @@
 import React from 'react';
 import { WifiOff, RefreshCw, Database } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 interface OfflineBannerProps {
   isOffline: boolean;
@@ -8,6 +9,9 @@ interface OfflineBannerProps {
 }
 
 export const OfflineBanner: React.FC<OfflineBannerProps> = ({ isOffline, pendingCount, onSyncNow }) => {
+  const { language } = useLanguage();
+  const isDe = language === 'de';
+
   if (!isOffline && pendingCount === 0) return null;
 
   return (
@@ -24,13 +28,17 @@ export const OfflineBanner: React.FC<OfflineBannerProps> = ({ isOffline, pending
         )}
         <span>
           {isOffline ? (
-            <strong>Hospital Basement Mode Active: </strong>
+            <strong>{isDe ? 'Klinik-Kellermodus aktiv: ' : 'Hospital Basement Mode Active: '}</strong>
           ) : (
-            <strong>Offline Queue Pending: </strong>
+            <strong>{isDe ? 'Offline-Warteschlange ausstehend: ' : 'Offline Queue Pending: '}</strong>
           )}
           {isOffline 
-            ? 'No cellular network detected. Scans, signatures, and state changes are saved locally to IndexedDB.' 
-            : `${pendingCount} item(s) stored locally are waiting to be synchronized with the central server.`
+            ? (isDe
+                ? 'Kein Mobilfunknetz erkannt. Scans, Signaturen und Statusänderungen werden lokal in der IndexedDB gesichert.'
+                : 'No cellular network detected. Scans, signatures, and state changes are saved locally to IndexedDB.')
+            : (isDe
+                ? `${pendingCount} lokal gespeicherte Aktion(en) warten auf die Synchronisation mit der Zentrale.`
+                : `${pendingCount} item(s) stored locally are waiting to be synchronized with the central server.`)
           }
         </span>
       </div>
@@ -38,7 +46,7 @@ export const OfflineBanner: React.FC<OfflineBannerProps> = ({ isOffline, pending
       <div className="flex items-center space-x-2">
         {pendingCount > 0 && (
           <span className="bg-amber-950 text-amber-200 border border-amber-600 px-2 py-0.5 rounded text-[11px]">
-            {pendingCount} action(s) queued
+            {pendingCount} {isDe ? 'Aktion(en) in Warteschlange' : 'action(s) queued'}
           </span>
         )}
         <button
@@ -46,7 +54,7 @@ export const OfflineBanner: React.FC<OfflineBannerProps> = ({ isOffline, pending
           className="bg-slate-800 hover:bg-slate-700 text-white px-2.5 py-1 rounded border border-slate-600 flex items-center space-x-1 transition-all"
         >
           <RefreshCw className="w-3 h-3" />
-          <span>Sync Queue</span>
+          <span>{isDe ? 'Jetzt synchronisieren' : 'Sync Queue'}</span>
         </button>
       </div>
     </div>

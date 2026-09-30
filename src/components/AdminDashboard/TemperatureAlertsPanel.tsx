@@ -1,6 +1,7 @@
 import React from 'react';
 import { Order, TemperatureTelemetry, TRANSPORT_TEMP_RANGES } from '../../types';
-import { Thermometer, AlertTriangle, ShieldCheck, Flame, Bell, CheckCircle2 } from 'lucide-react';
+import { Thermometer, AlertTriangle, Flame, Bell } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface TemperatureAlertsPanelProps {
   orders: Order[];
@@ -11,13 +12,16 @@ export const TemperatureAlertsPanel: React.FC<TemperatureAlertsPanelProps> = ({
   orders,
   onSimulateSpike,
 }) => {
+  const { language, t } = useLanguage();
+  const isDe = language === 'de';
+
   // Collect all breach incidents across active orders
   const allTelemetryWithBreaches: { order: Order; telemetry: TemperatureTelemetry }[] = [];
 
   orders.forEach((o) => {
-    o.telemetryLogs.forEach((t) => {
-      if (t.isBreach) {
-        allTelemetryWithBreaches.push({ order: o, telemetry: t });
+    o.telemetryLogs.forEach((tLog) => {
+      if (tLog.isBreach) {
+        allTelemetryWithBreaches.push({ order: o, telemetry: tLog });
       }
     });
   });
@@ -32,13 +36,17 @@ export const TemperatureAlertsPanel: React.FC<TemperatureAlertsPanelProps> = ({
             <Thermometer className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-white">Thermal Telemetry & Threshold Breach Monitor</h3>
-            <p className="text-xs text-slate-400">UN 3373 Cold-Chain & Ambient Real-Time Safety Rules</p>
+            <h3 className="text-base font-bold text-white">
+              {isDe ? 'Temperatur-Telemetrie & Schwellenwert-Überwachung' : 'Thermal Telemetry & Threshold Breach Monitor'}
+            </h3>
+            <p className="text-xs text-slate-400">
+              {isDe ? 'UN 3373 Kühlketten- & Raumtemperatur-Sicherheitsregeln in Echtzeit' : 'UN 3373 Cold-Chain & Ambient Real-Time Safety Rules'}
+            </p>
           </div>
         </div>
 
         <span className="bg-slate-800 text-slate-300 border border-slate-700 px-2.5 py-1 rounded-md text-xs font-mono font-semibold">
-          Pulse: Every 4s
+          {isDe ? 'Taktung: Alle 4s' : 'Pulse: Every 4s'}
         </span>
       </div>
 
@@ -67,36 +75,36 @@ export const TemperatureAlertsPanel: React.FC<TemperatureAlertsPanelProps> = ({
                 <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
                   isBreach ? 'bg-rose-900 text-rose-200 border-rose-500' : 'bg-emerald-950 text-emerald-300 border-emerald-700'
                 }`}>
-                  {isBreach ? '⚠️ BREACH ALERT' : '✓ TEMPERATURE OK'}
+                  {isBreach ? (isDe ? '⚠️ TEMPERATUR-ALARM' : '⚠️ BREACH ALERT') : (isDe ? '✓ TEMPERATUR OK' : '✓ TEMPERATURE OK')}
                 </span>
               </div>
 
               {/* Temperature Reading */}
               <div className="py-2 flex items-center justify-between font-mono">
                 <div>
-                  <span className="text-slate-400 text-[10px] block">Current Reading</span>
+                  <span className="text-slate-400 text-[10px] block">{isDe ? 'Aktueller Messwert' : 'Current Reading'}</span>
                   <span className={`text-xl font-bold ${isBreach ? 'text-rose-400' : 'text-emerald-400'}`}>
                     {latestTel ? `${latestTel.tempCelsius}°C` : 'N/A'}
                   </span>
                 </div>
 
                 <div className="text-right">
-                  <span className="text-slate-400 text-[10px] block">Target Range</span>
+                  <span className="text-slate-400 text-[10px] block">{isDe ? 'Soll-Bereich' : 'Target Range'}</span>
                   <span className="text-slate-200 text-xs font-semibold">
-                    {tempRange.min}°C to {tempRange.max}°C
+                    {tempRange.min}°C {isDe ? 'bis' : 'to'} {tempRange.max}°C
                   </span>
                 </div>
               </div>
 
               {/* Actions & Spike Simulator Button */}
               <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
-                <span className="text-slate-400 text-[11px]">{ord.status}</span>
+                <span className="text-slate-400 text-[11px]">{t(`status.${ord.status}`)}</span>
                 <button
                   onClick={() => onSimulateSpike(ord)}
                   className="bg-slate-800 hover:bg-rose-900 text-slate-300 hover:text-rose-200 border border-slate-700 hover:border-rose-600 px-2 py-1 rounded text-[11px] font-medium flex items-center space-x-1 transition-all"
                 >
                   <Flame className="w-3 h-3 text-amber-400" />
-                  <span>Simulate Temp Spike</span>
+                  <span>{isDe ? 'Temperatur-Spitze simulieren' : 'Simulate Temp Spike'}</span>
                 </button>
               </div>
 
@@ -109,12 +117,18 @@ export const TemperatureAlertsPanel: React.FC<TemperatureAlertsPanelProps> = ({
       <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-2">
         <h4 className="font-bold text-xs text-white flex items-center space-x-2">
           <Bell className="w-4 h-4 text-amber-400" />
-          <span>Historical Breach Log & Protocol Escalations ({allTelemetryWithBreaches.length})</span>
+          <span>
+            {isDe
+              ? `Historisches Protokoll Grenzwertverletzungen (${allTelemetryWithBreaches.length})`
+              : `Historical Breach Log & Protocol Escalations (${allTelemetryWithBreaches.length})`}
+          </span>
         </h4>
 
         {allTelemetryWithBreaches.length === 0 ? (
           <p className="text-slate-500 text-xs italic py-2">
-            No temperature threshold breaches recorded. All cold-chain and ambient packages maintained inside required ADR packaging specifications.
+            {isDe
+              ? 'Keine Temperaturüberschreitungen verzeichnet. Alle Kühl- und Raumtemperaturbehälter entsprechen den geforderten ADR P650 Spezifikationen.'
+              : 'No temperature threshold breaches recorded. All cold-chain and ambient packages maintained inside required ADR packaging specifications.'}
           </p>
         ) : (
           <div className="max-h-40 overflow-y-auto space-y-1.5 text-xs font-mono">
@@ -124,10 +138,14 @@ export const TemperatureAlertsPanel: React.FC<TemperatureAlertsPanelProps> = ({
                   <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
                   <div>
                     <span className="font-bold text-white">{order.trackingNumber}: </span>
-                    <span>Recorded {telemetry.tempCelsius}°C (Target: {TRANSPORT_TEMP_RANGES[order.transportType].min}°C - {TRANSPORT_TEMP_RANGES[order.transportType].max}°C)</span>
+                    <span>
+                      {isDe
+                        ? `Gemessen ${telemetry.tempCelsius}°C (Soll: ${TRANSPORT_TEMP_RANGES[order.transportType].min}°C - ${TRANSPORT_TEMP_RANGES[order.transportType].max}°C)`
+                        : `Recorded ${telemetry.tempCelsius}°C (Target: ${TRANSPORT_TEMP_RANGES[order.transportType].min}°C - ${TRANSPORT_TEMP_RANGES[order.transportType].max}°C)`}
+                    </span>
                   </div>
                 </div>
-                <span className="text-[10px] text-rose-300">{new Date(telemetry.timestamp).toLocaleTimeString('de-DE')}</span>
+                <span className="text-[10px] text-rose-300">{new Date(telemetry.timestamp).toLocaleTimeString(isDe ? 'de-DE' : 'en-US')}</span>
               </div>
             ))}
           </div>

@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { parseScannedQRPayload } from '../../lib/qrCodeGenerator';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface BarcodeScannerModalProps {
   isOpen: boolean;
@@ -56,6 +57,9 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
   onClose,
   onConfirm,
 }) => {
+  const { language } = useLanguage();
+  const isDe = language === 'de';
+
   const [scannedBarcodes, setScannedBarcodes] = useState<string[]>(expectedBarcodes || []);
   const [manualInput, setManualInput] = useState<string>('');
   const [flashMsg, setFlashMsg] = useState<string>('');
@@ -430,12 +434,16 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h3 className="font-bold text-sm sm:text-base text-white">Specimen Barcode & Camera Scanner</h3>
+                <h3 className="font-bold text-sm sm:text-base text-white">
+                  {isDe ? 'Proben-Barcode & Kamera-Scanner' : 'Specimen Barcode & Camera Scanner'}
+                </h3>
                 <span className="bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-mono px-1.5 py-0.5 rounded font-bold">
                   UN 3373 P650
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400">Live Hardware Video & Laser Aiming Guide</p>
+              <p className="text-[11px] text-slate-400">
+                {isDe ? 'Echtzeit Kamera-Erfassung & Laser-Zielhilfe' : 'Live Hardware Video & Laser Aiming Guide'}
+              </p>
             </div>
           </div>
 
@@ -485,7 +493,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
                 
                 <div className="absolute bottom-2 bg-slate-950/80 backdrop-blur-sm px-3 py-1 rounded-full border border-slate-700 text-[10px] text-emerald-300 font-mono flex items-center space-x-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                  <span>Aim at 1D Barcode or 2D QR Code</span>
+                  <span>{isDe ? 'Auf 1D Barcode oder 2D QR-Code richten' : 'Aim at 1D Barcode or 2D QR Code'}</span>
                 </div>
               </div>
             )}
@@ -608,7 +616,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
                 title="Simulate laser scan hardware read"
               >
                 <Sparkles className="w-3.5 h-3.5 text-purple-300" />
-                <span>Simulate Scan</span>
+                <span>{isDe ? 'Scan simulieren' : 'Simulate Scan'}</span>
               </button>
 
               <button
@@ -618,7 +626,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
                 title="Verify all barcodes belonging to this order"
               >
                 <Check className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Verify All Order Codes</span>
+                <span>{isDe ? 'Alle Barcodes erfassen' : 'Verify All Order Codes'}</span>
               </button>
             </div>
           </div>
@@ -626,8 +634,8 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
           {/* Quick Barcode Test Targets Chips */}
           <div className="bg-slate-950/40 p-2.5 rounded-xl border border-slate-800/80 space-y-1.5">
             <div className="flex items-center justify-between text-[11px] text-slate-400">
-              <span className="font-semibold text-slate-300">Quick Test Specimen Codes (Tap to scan):</span>
-              <span className="text-[10px] text-emerald-400">1-Tap Verification</span>
+              <span className="font-semibold text-slate-300">{isDe ? 'Proben-Codes zur Schnellauswahl (Tippen):' : 'Quick Test Specimen Codes (Tap to scan):'}</span>
+              <span className="text-[10px] text-emerald-400">{isDe ? '1-Klick Erfassung' : '1-Tap Verification'}</span>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {(expectedBarcodes.length > 0 ? expectedBarcodes : ['SPEC-MR-4412', 'SPEC-KS-101-A', 'SPEC-KS-101-B', 'SPEC-KS-101-C']).map((code) => {
@@ -675,7 +683,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
           {/* Manual Input Fallback */}
           <div className="space-y-1.5 bg-slate-950/50 p-3 rounded-xl border border-slate-800">
             <label className="text-slate-300 font-semibold block text-[11px]">
-              Manual Barcode or Tracking # Entry:
+              {isDe ? 'Manuelle Barcode- oder Auftrags-ID Eingabe:' : 'Manual Barcode or Tracking # Entry:'}
             </label>
             <div className="flex space-x-2">
               <input
@@ -688,7 +696,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
                     handleAddManualBarcode(manualInput);
                   }
                 }}
-                placeholder="e.g. SPEC-BER-9902-A or DE-UN3373-2026-8821"
+                placeholder={isDe ? 'z.B. SPEC-BER-9902-A oder DE-UN3373-8821' : 'e.g. SPEC-BER-9902-A or DE-UN3373-2026-8821'}
                 className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-white focus:outline-none focus:border-emerald-500 font-mono text-xs uppercase"
               />
               <button
@@ -698,7 +706,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
                 className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white px-3.5 py-1.5 rounded-xl font-bold flex items-center space-x-1 shadow transition-all shrink-0"
               >
                 <Plus className="w-4 h-4" />
-                <span>Add</span>
+                <span>{isDe ? 'Hinzufügen' : 'Add'}</span>
               </button>
             </div>
           </div>
@@ -708,12 +716,12 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
             <div className="flex items-center justify-between text-slate-300 font-semibold text-xs">
               <span className="flex items-center space-x-1.5">
                 <Layers className="w-4 h-4 text-emerald-400" />
-                <span>Verified Specimen Barcodes ({scannedBarcodes.length}):</span>
+                <span>{isDe ? 'Verifizierte Proben-Barcodes' : 'Verified Specimen Barcodes'} ({scannedBarcodes.length}):</span>
               </span>
               {scannedBarcodes.length === 0 && (
                 <span className="text-rose-400 text-[11px] flex items-center space-x-1 bg-rose-950/60 border border-rose-800 px-2 py-0.5 rounded-full font-bold">
                   <AlertCircle className="w-3 h-3" />
-                  <span>Scan required</span>
+                  <span>{isDe ? 'Scan erforderlich' : 'Scan required'}</span>
                 </span>
               )}
             </div>
@@ -721,8 +729,8 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
             <div className="max-h-36 overflow-y-auto space-y-1.5 bg-slate-950 border border-slate-800 p-2.5 rounded-xl">
               {scannedBarcodes.length === 0 ? (
                 <div className="text-slate-500 text-center py-5 space-y-1">
-                  <p className="italic">No specimen barcodes registered yet.</p>
-                  <p className="text-[10px] text-slate-600">Scan packaging labels via camera or type codes above</p>
+                  <p className="italic">{isDe ? 'Noch keine Proben-Barcodes registriert.' : 'No specimen barcodes registered yet.'}</p>
+                  <p className="text-[10px] text-slate-600">{isDe ? 'Etiketten per Kamera scannen oder oben manuell eingeben' : 'Scan packaging labels via camera or type codes above'}</p>
                 </div>
               ) : (
                 scannedBarcodes.map((code, idx) => {
@@ -742,7 +750,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
                           </span>
                           {isExpected && (
                             <span className="text-[10px] text-emerald-400 font-semibold flex items-center space-x-0.5">
-                              <Check className="w-3 h-3 inline" /> Order Specimen Match
+                              <Check className="w-3 h-3 inline" /> {isDe ? 'Auftragsübereinstimmung' : 'Order Specimen Match'}
                             </span>
                           )}
                         </div>
@@ -752,7 +760,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
                         type="button"
                         onClick={() => handleRemove(code)}
                         className="text-slate-400 hover:text-rose-400 hover:bg-rose-950/60 p-1.5 rounded-lg transition-colors shrink-0"
-                        title="Remove barcode"
+                        title={isDe ? 'Barcode entfernen' : 'Remove barcode'}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -772,7 +780,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
             onClick={onClose}
             className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 font-semibold transition-all text-xs"
           >
-            Cancel
+            {isDe ? 'Abbrechen' : 'Cancel'}
           </button>
 
           <button
@@ -782,7 +790,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
             className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold flex items-center space-x-2 shadow-lg shadow-emerald-950 transition-all text-xs active:scale-95"
           >
             <Check className="w-4 h-4" />
-            <span>Confirm Verified Barcodes ({scannedBarcodes.length})</span>
+            <span>{isDe ? `Barcodes bestätigen (${scannedBarcodes.length})` : `Confirm Verified Barcodes (${scannedBarcodes.length})`}</span>
           </button>
         </div>
 

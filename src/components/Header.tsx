@@ -1,45 +1,42 @@
-import React, { useState, useEffect } from 'react';
-import { Role, User } from '../types';
-import { offlineQueue } from '../lib/offlineQueue';
-import medigoLogoImg from '../assets/images/medigo_logo_1785514597465.jpg';
+import React, { useState } from 'react';
 import { 
-  ShieldCheck, 
-  Smartphone, 
+  Building2, 
+  Truck, 
   Monitor, 
+  Globe, 
   Wifi, 
   WifiOff, 
   RefreshCw, 
-  AlertTriangle, 
-  FileCode, 
-  Building2, 
-  HelpCircle, 
   Scale, 
-  Download, 
-  Key, 
-  LogIn, 
+  FileCode, 
+  Smartphone, 
+  Sun, 
+  Moon, 
+  Users, 
   UserCheck, 
-  LogOut,
-  Menu,
-  X,
-  ChevronRight,
-  Sun,
-  Moon,
-  Sparkles,
-  Globe,
-  MapPin,
-  Users,
-  Database,
-  Crown
+  Key, 
+  ShieldCheck, 
+  AlertTriangle, 
+  LogOut, 
+  Crown, 
+  HelpCircle, 
+  Menu, 
+  X, 
+  Search, 
+  ChevronRight, 
+  Database 
 } from 'lucide-react';
+import { Role, User } from '../types';
+import { offlineQueue } from '../lib/offlineQueue';
 import { useLanguage } from '../context/LanguageContext';
-import { DatabaseStatus } from '../context/AuthContext';
+import medigoLogoImg from '../assets/images/medigo_logo_1785514597465.jpg';
 
 interface HeaderProps {
   activeRole: Role;
   setActiveRole: (role: Role) => void;
-  currentUser?: User | null;
-  viewMode: 'DRIVER_MOBILE' | 'DISPATCH_DASHBOARD' | 'CLIENT_PORTAL' | 'LEGAL_COMPLIANCE' | 'PRISMA_SCHEMA' | 'SECURITY_AUDIT';
-  setViewMode: (mode: 'DRIVER_MOBILE' | 'DISPATCH_DASHBOARD' | 'CLIENT_PORTAL' | 'LEGAL_COMPLIANCE' | 'PRISMA_SCHEMA' | 'SECURITY_AUDIT') => void;
+  currentUser: User | null;
+  viewMode: 'DRIVER_MOBILE' | 'DISPATCH_DASHBOARD' | 'CLIENT_PORTAL' | 'LEGAL_COMPLIANCE' | 'PRISMA_SCHEMA' | 'SECURITY_AUDIT' | 'PATIENT_TRACKING';
+  setViewMode: (mode: 'DRIVER_MOBILE' | 'DISPATCH_DASHBOARD' | 'CLIENT_PORTAL' | 'LEGAL_COMPLIANCE' | 'PRISMA_SCHEMA' | 'SECURITY_AUDIT' | 'PATIENT_TRACKING') => void;
   isOffline: boolean;
   setIsOffline: (offline: boolean) => void;
   pendingCount: number;
@@ -49,7 +46,11 @@ interface HeaderProps {
   onOpenMobileInstall?: () => void;
   onOpenLoginPortal?: () => void;
   onOpenUserManagement?: () => void;
-  dbStatus?: DatabaseStatus | null;
+  dbStatus?: {
+    supabaseConfigured: boolean;
+    tablesCreated: boolean;
+    message?: string;
+  };
   onLogout?: () => void;
   isNightShift?: boolean;
   onToggleNightShift?: () => void;
@@ -77,6 +78,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { language, toggleLanguage, t } = useLanguage();
+  const isDe = language === 'de';
 
   return (
     <header className={`border-b sticky top-0 z-40 transition-colors duration-300 select-none ${
@@ -109,11 +111,13 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className={`text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wide truncate ${
                   isNightShift ? 'bg-red-950 text-red-200 border-red-700' : 'bg-red-100 text-red-700 border-red-200'
                 }`}>
-                  Wiesbaden HQ • Hessen
+                  {isDe ? 'Wiesbaden Zentrale • Hessen' : 'Wiesbaden HQ • Hesse'}
                 </span>
               </div>
               <p className={`text-[10px] sm:text-xs truncate ${isNightShift ? 'text-slate-400' : 'text-slate-500'}`}>
-                UN 3373 Medical Logistics • Wiesbaden Hub & Hessen Express
+                {isDe 
+                  ? 'UN 3373 Medizinische Logistik • Wiesbaden Hub & Hessen Express' 
+                  : 'UN 3373 Medical Logistics • Wiesbaden Hub & Hesse Express'}
               </p>
             </div>
           </div>
@@ -129,10 +133,10 @@ export const Header: React.FC<HeaderProps> = ({
                   ? 'bg-slate-800 hover:bg-slate-700 text-slate-100 border-slate-700 shadow-sm'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-900 border-slate-300 shadow-sm'
               }`}
-              title="Switch Language (German / English)"
+              title={isDe ? 'Sprache wechseln (Deutsch / Englisch)' : 'Switch Language (German / English)'}
             >
               <Globe className="w-3.5 h-3.5 text-red-500" />
-              <span>{language === 'de' ? '🇩🇪 DE' : '🇬🇧 EN'}</span>
+              <span>{isDe ? '🇩🇪 DE' : '🇬🇧 EN'}</span>
             </button>
             
             {/* Dynamic Day / Night Shift Mode Toggle */}
@@ -144,17 +148,17 @@ export const Header: React.FC<HeaderProps> = ({
                     ? 'bg-indigo-950 border-indigo-600 text-indigo-200 shadow-md hover:bg-indigo-900'
                     : 'bg-amber-100 border-amber-300 text-amber-900 shadow-sm hover:bg-amber-200'
                 }`}
-                title="Toggle Clear (Light) Mode vs Dark Mode"
+                title={isDe ? 'Tag- / Nachtmodus umschalten' : 'Toggle Day / Night Mode'}
               >
                 {isNightShift ? (
                   <>
                     <Moon className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
-                    <span>🌙 Dark Mode (20:00 - 06:00)</span>
+                    <span>{isDe ? '🌙 Nacht-Schicht (20-06h)' : '🌙 Night Shift (20-06h)'}</span>
                   </>
                 ) : (
                   <>
                     <Sun className="w-3.5 h-3.5 text-amber-600" />
-                    <span>☀️ Clear Mode (Tagdienst)</span>
+                    <span>{isDe ? '☀️ Tages-Betrieb' : '☀️ Daylight Ops'}</span>
                   </>
                 )}
               </button>
@@ -165,10 +169,10 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 onClick={onOpenMobileInstall}
                 className="bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-700 px-2.5 py-1.5 rounded-lg flex items-center space-x-1 text-xs font-semibold transition-all shadow-sm min-h-[36px]"
-                title="Install Mobile App on Android or iOS"
+                title={isDe ? 'Mobile App für Android & iOS installieren' : 'Install Mobile App on Android or iOS'}
               >
                 <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Get App</span>
+                <span>{isDe ? 'App laden' : 'Get App'}</span>
               </button>
             )}
 
@@ -188,12 +192,12 @@ export const Header: React.FC<HeaderProps> = ({
               {isOffline ? (
                 <>
                   <WifiOff className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                  <span>Basement Mode (Offline)</span>
+                  <span>{isDe ? 'Keller-Modus (Offline)' : 'Basement Mode (Offline)'}</span>
                 </>
               ) : (
                 <>
                   <Wifi className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Online Coverage</span>
+                  <span>{isDe ? 'Online' : 'Online Coverage'}</span>
                 </>
               )}
             </button>
@@ -211,10 +215,10 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
                 title={
                   dbStatus.tablesCreated
-                    ? 'Supabase PostgreSQL connected & tables active. Click to manage.'
+                    ? (isDe ? 'PostgreSQL verbunden & Tabellen aktiv.' : 'PostgreSQL connected & tables active.')
                     : dbStatus.supabaseConfigured
-                    ? 'Supabase connected but tables are not created yet! Click to view SQL schema.'
-                    : 'Local Persistent Server Storage active. Click to configure Supabase.'
+                    ? (isDe ? 'PostgreSQL verbunden, Tabellen fehlen.' : 'Supabase connected, tables pending.')
+                    : (isDe ? 'Lokale Speicherung aktiv.' : 'Local server storage active.')
                 }
               >
                 <Database className={`w-3.5 h-3.5 ${
@@ -222,9 +226,9 @@ export const Header: React.FC<HeaderProps> = ({
                 }`} />
                 <span className="text-[11px] font-bold">
                   {dbStatus.tablesCreated
-                    ? 'Supabase DB'
+                    ? 'PostgreSQL DB'
                     : dbStatus.supabaseConfigured
-                    ? 'Supabase (Run SQL)'
+                    ? 'DB (Run SQL)'
                     : 'Server DB'}
                 </span>
               </button>
@@ -235,10 +239,10 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 onClick={onOpenUserManagement}
                 className="bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-cyan-300 font-bold px-3 py-1.5 rounded-lg flex items-center space-x-1.5 text-xs transition-all shadow-md min-h-[36px]"
-                title="Admin User Management: Create Users & Assign Authorized Contract Numbers"
+                title={isDe ? 'Benutzer & Verträge verwalten' : 'Admin User & Contract Management'}
               >
                 <Users className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Users & Contracts</span>
+                <span>{isDe ? 'Benutzer & Verträge' : 'Users & Contracts'}</span>
               </button>
             )}
 
@@ -247,10 +251,10 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 onClick={onOpenLoginPortal}
                 className="bg-amber-500/20 hover:bg-amber-500/30 border border-amber-600/60 text-amber-300 font-bold px-3 py-1.5 rounded-lg flex items-center space-x-1.5 text-xs transition-all shadow-md min-h-[36px]"
-                title="Executive Control: Switch active role account or test permissions"
+                title={isDe ? 'Rolle wechseln' : 'Switch active role account'}
               >
                 <Key className="w-3.5 h-3.5 text-amber-400" />
-                <span>Switch Role (CEO)</span>
+                <span>{isDe ? 'Rolle wechseln' : 'Switch Role (CEO)'}</span>
               </button>
             )}
 
@@ -279,10 +283,10 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 onClick={onLogout}
                 className="bg-red-950/80 hover:bg-red-900 border border-red-800 text-red-200 font-bold px-3 py-1.5 rounded-lg flex items-center space-x-1.5 text-xs transition-all shadow-md min-h-[36px]"
-                title="Log out and return to MediGo Home Page"
+                title={isDe ? 'Abmelden und zur Startseite zurückkehren' : 'Log out and return to Home'}
               >
                 <LogOut className="w-3.5 h-3.5 text-red-400" />
-                <span>Sign Out</span>
+                <span>{isDe ? 'Abmelden' : 'Sign Out'}</span>
               </button>
             )}
 
@@ -300,7 +304,7 @@ export const Header: React.FC<HeaderProps> = ({
               aria-label="Switch Language"
               title="Switch Language (DE / EN)"
             >
-              <span className="text-xs font-black">{language === 'de' ? '🇩🇪' : '🇬🇧'}</span>
+              <span className="text-xs font-black">{isDe ? '🇩🇪' : '🇬🇧'}</span>
             </button>
 
             {onToggleNightShift && (
@@ -320,7 +324,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             {activeBreachesCount > 0 && (
               <span className="bg-rose-950 text-rose-300 border border-rose-600 text-[10px] font-bold px-2 py-1 rounded-md animate-pulse">
-                {activeBreachesCount} Breach!
+                {activeBreachesCount} {isDe ? 'Alarm!' : 'Breach!'}
               </span>
             )}
 
@@ -344,7 +348,7 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="flex items-center space-x-2 bg-slate-950/90 p-1 rounded-xl border border-slate-800">
                 <div className="flex items-center space-x-2 text-xs font-bold text-blue-300 bg-blue-950/90 px-3 py-1.5 rounded-lg border border-blue-800">
                   <Building2 className="w-4 h-4 text-blue-400" />
-                  <span>Clinic Portal Scope ({currentUser.organization || 'Klinikum Frankfurt'})</span>
+                  <span>{isDe ? 'Klinik-Portal Bereich' : 'Clinic Portal Scope'} ({currentUser.organization || 'Klinikum Frankfurt'})</span>
                 </div>
 
                 <button
@@ -356,7 +360,7 @@ export const Header: React.FC<HeaderProps> = ({
                   }`}
                 >
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Security Matrix</span>
+                  <span>{isDe ? 'Sicherheits-Matrix' : 'Security Matrix'}</span>
                 </button>
               </div>
             )}
@@ -366,7 +370,7 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="flex items-center space-x-2 bg-slate-950/90 p-1 rounded-xl border border-slate-800">
                 <div className="flex items-center space-x-2 text-xs font-bold text-emerald-300 bg-emerald-950/90 px-3 py-1.5 rounded-lg border border-emerald-800">
                   <Smartphone className="w-4 h-4 text-emerald-400" />
-                  <span>Courier Driver Mobile Scope ({currentUser.name})</span>
+                  <span>{isDe ? 'Kurier-Fahrer Bereich' : 'Courier Driver Mobile Scope'} ({currentUser.name})</span>
                 </div>
 
                 <button
@@ -378,7 +382,7 @@ export const Header: React.FC<HeaderProps> = ({
                   }`}
                 >
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Security Matrix</span>
+                  <span>{isDe ? 'Sicherheits-Matrix' : 'Security Matrix'}</span>
                 </button>
               </div>
             )}
@@ -398,7 +402,7 @@ export const Header: React.FC<HeaderProps> = ({
                   }`}
                 >
                   <Building2 className="w-3.5 h-3.5" />
-                  <span>Clinic Portal</span>
+                  <span>{isDe ? 'Klinik & Labor' : 'Clinic Portal'}</span>
                 </button>
 
                 <button
@@ -413,7 +417,7 @@ export const Header: React.FC<HeaderProps> = ({
                   }`}
                 >
                   <Smartphone className="w-3.5 h-3.5" />
-                  <span>Driver App</span>
+                  <span>{isDe ? 'Fahrer-App' : 'Driver App'}</span>
                 </button>
 
                 <button
@@ -428,7 +432,7 @@ export const Header: React.FC<HeaderProps> = ({
                   }`}
                 >
                   <Monitor className="w-3.5 h-3.5" />
-                  <span>Dispatch / CEO</span>
+                  <span>{isDe ? 'Leitstand / Disposition' : 'Dispatch / CEO'}</span>
                 </button>
 
                 <button
@@ -440,7 +444,7 @@ export const Header: React.FC<HeaderProps> = ({
                   }`}
                 >
                   <Scale className="w-3.5 h-3.5" />
-                  <span>Legal & GDPR</span>
+                  <span>{isDe ? 'Recht & DSGVO' : 'Legal & GDPR'}</span>
                 </button>
 
                 <button
@@ -452,7 +456,7 @@ export const Header: React.FC<HeaderProps> = ({
                   }`}
                 >
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Security Matrix</span>
+                  <span>{isDe ? 'Sicherheits-Matrix' : 'Security Matrix'}</span>
                 </button>
 
                 <button
@@ -464,7 +468,19 @@ export const Header: React.FC<HeaderProps> = ({
                   }`}
                 >
                   <FileCode className="w-3.5 h-3.5" />
-                  <span>Prisma Schema</span>
+                  <span>{isDe ? 'Daten-Schema' : 'Prisma Schema'}</span>
+                </button>
+
+                <button
+                  onClick={() => setViewMode('PATIENT_TRACKING')}
+                  className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all min-h-[34px] ${
+                    viewMode === 'PATIENT_TRACKING'
+                      ? 'bg-red-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <Search className="w-3.5 h-3.5 text-red-400" />
+                  <span>{isDe ? 'Patienten-Tracking' : 'Patient Tracking'}</span>
                 </button>
               </div>
             )}
@@ -476,7 +492,7 @@ export const Header: React.FC<HeaderProps> = ({
             {activeBreachesCount > 0 && (
               <div className="flex items-center space-x-1 bg-rose-950 border border-rose-600 text-rose-200 px-2 py-1 rounded-md text-[11px] font-bold animate-pulse">
                 <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
-                <span>{activeBreachesCount} Temp Breach!</span>
+                <span>{activeBreachesCount} {isDe ? 'Kühlketten-Alarm!' : 'Temp Breach!'}</span>
               </div>
             )}
 
@@ -485,10 +501,10 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 onClick={onManualSync}
                 className="flex items-center space-x-1 bg-blue-900 border border-blue-600 text-blue-200 px-2 py-1 rounded-md hover:bg-blue-800 text-[11px] font-bold transition-all"
-                title="Force sync offline queue"
+                title={isDe ? 'Offline-Warteschlange synchronisieren' : 'Force sync offline queue'}
               >
                 <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-300" />
-                <span>{pendingCount} Sync</span>
+                <span>{pendingCount} {isDe ? 'Sync' : 'Sync'}</span>
               </button>
             )}
 
@@ -498,7 +514,7 @@ export const Header: React.FC<HeaderProps> = ({
                 className="text-cyan-400 hover:text-cyan-300 flex items-center space-x-1 text-xs font-semibold px-2 py-1 rounded bg-slate-800 border border-slate-700"
               >
                 <HelpCircle className="w-3.5 h-3.5" />
-                <span>Sensor Guide</span>
+                <span>{isDe ? 'Sensor-Guide' : 'Sensor Guide'}</span>
               </button>
             )}
           </div>
@@ -511,14 +527,14 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="flex items-center space-x-1.5 shrink-0">
               <span className="bg-blue-950 text-blue-300 border border-blue-800 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1">
                 <Building2 className="w-3.5 h-3.5 text-blue-400" />
-                <span>Clinic Portal Scope</span>
+                <span>{isDe ? 'Klinik-Portal' : 'Clinic Portal'}</span>
               </span>
               <button
                 onClick={() => setViewMode('SECURITY_AUDIT')}
                 className="bg-amber-950 text-amber-300 border border-amber-800 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1"
               >
                 <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-                <span>Security</span>
+                <span>{isDe ? 'Sicherheit' : 'Security'}</span>
               </button>
             </div>
           )}
@@ -527,14 +543,14 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="flex items-center space-x-1.5 shrink-0">
               <span className="bg-emerald-950 text-emerald-300 border border-emerald-800 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1">
                 <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Driver Mobile Scope</span>
+                <span>{isDe ? 'Fahrer-Kurier' : 'Driver Mobile'}</span>
               </span>
               <button
                 onClick={() => setViewMode('SECURITY_AUDIT')}
                 className="bg-amber-950 text-amber-300 border border-amber-800 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1"
               >
                 <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-                <span>Security</span>
+                <span>{isDe ? 'Sicherheit' : 'Security'}</span>
               </button>
             </div>
           )}
@@ -553,7 +569,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <Building2 className="w-4 h-4" />
-                <span>Clinic Portal</span>
+                <span>{isDe ? 'Klinik' : 'Clinic'}</span>
               </button>
 
               <button
@@ -568,7 +584,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <Smartphone className="w-4 h-4" />
-                <span>Driver App</span>
+                <span>{isDe ? 'Fahrer' : 'Driver'}</span>
               </button>
 
               <button
@@ -583,7 +599,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <Monitor className="w-4 h-4" />
-                <span>Dispatch CEO</span>
+                <span>{isDe ? 'Leitstand' : 'Dispatch'}</span>
               </button>
 
               <button
@@ -595,7 +611,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <ShieldCheck className="w-4 h-4" />
-                <span>Security Matrix</span>
+                <span>{isDe ? 'Sicherheit' : 'Security'}</span>
               </button>
 
               <button
@@ -607,7 +623,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <Scale className="w-4 h-4" />
-                <span>Legal AVV</span>
+                <span>{isDe ? 'Recht & AVV' : 'Legal & AVV'}</span>
               </button>
 
               <button
@@ -619,7 +635,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <FileCode className="w-4 h-4" />
-                <span>Schema</span>
+                <span>{isDe ? 'Schema' : 'Schema'}</span>
               </button>
             </>
           )}
@@ -650,7 +666,7 @@ export const Header: React.FC<HeaderProps> = ({
                     }}
                     className="bg-amber-500/20 text-amber-300 border border-amber-600/60 px-2.5 py-1.5 rounded-lg text-xs font-bold"
                   >
-                    Switch Role
+                    {isDe ? 'Rolle wechseln' : 'Switch Role'}
                   </button>
                 )}
               </div>
@@ -671,10 +687,10 @@ export const Header: React.FC<HeaderProps> = ({
                 >
                   <div className="flex items-center space-x-2">
                     {isNightShift ? <Moon className="w-4 h-4 text-indigo-400" /> : <Sun className="w-4 h-4 text-amber-400" />}
-                    <span>{isNightShift ? 'Night Shift (20:00 - 06:00)' : 'Day Mode (Tagdienst)'}</span>
+                    <span>{isNightShift ? (isDe ? 'Nacht-Schicht (20:00 - 06:00)' : 'Night Shift (20:00 - 06:00)') : (isDe ? 'Tages-Betrieb (Tagdienst)' : 'Day Mode (Daylight Ops)')}</span>
                   </div>
                   <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-slate-950 font-extrabold">
-                    {isNightShift ? 'NIGHT 🌙' : 'DAY ☀️'}
+                    {isNightShift ? (isDe ? 'NACHT 🌙' : 'NIGHT 🌙') : (isDe ? 'TAG ☀️' : 'DAY ☀️')}
                   </span>
                 </button>
               )}
@@ -694,7 +710,7 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <div className="flex items-center space-x-2">
                   {isOffline ? <WifiOff className="w-4 h-4 text-amber-400" /> : <Wifi className="w-4 h-4 text-emerald-400" />}
-                  <span>Basement Mode (Offline Simulation)</span>
+                  <span>{isDe ? 'Keller-Modus (Offline-Simulation)' : 'Basement Mode (Offline Simulation)'}</span>
                 </div>
                 <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-slate-950">
                   {isOffline ? 'OFFLINE' : 'ONLINE'}
@@ -712,7 +728,7 @@ export const Header: React.FC<HeaderProps> = ({
                 >
                   <div className="flex items-center space-x-2">
                     <Users className="w-4 h-4 text-cyan-400" />
-                    <span>Manage Users & Contract Numbers</span>
+                    <span>{isDe ? 'Benutzer & Vertragsnummern verwalten' : 'Manage Users & Contract Numbers'}</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-cyan-500" />
                 </button>
@@ -729,7 +745,7 @@ export const Header: React.FC<HeaderProps> = ({
                 >
                   <div className="flex items-center space-x-2">
                     <Smartphone className="w-4 h-4 text-emerald-400" />
-                    <span>Download App / Store APK Guide</span>
+                    <span>{isDe ? 'App herunterladen / PWA Anleitung' : 'Download App / Store APK Guide'}</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-500" />
                 </button>
@@ -746,7 +762,7 @@ export const Header: React.FC<HeaderProps> = ({
                 >
                   <div className="flex items-center space-x-2">
                     <HelpCircle className="w-4 h-4 text-cyan-400" />
-                    <span>Temperature Sensor & Breach Guide</span>
+                    <span>{isDe ? 'Temperatursensor & Alarm-Leitfaden' : 'Temperature Sensor & Breach Guide'}</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-500" />
                 </button>
@@ -764,7 +780,7 @@ export const Header: React.FC<HeaderProps> = ({
                 className="w-full bg-red-950/90 border border-red-800 text-red-200 font-bold p-3 rounded-xl flex items-center justify-center space-x-2 text-xs shadow-md min-h-[44px]"
               >
                 <LogOut className="w-4 h-4 text-red-400" />
-                <span>Sign Out of MediGo</span>
+                <span>{isDe ? 'Von MediGo abmelden' : 'Sign Out of MediGo'}</span>
               </button>
             )}
 
@@ -775,4 +791,3 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   );
 };
-

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Order, TRANSPORT_TEMP_RANGES } from '../../types';
-import { MapPin, Truck, Navigation, Thermometer, Battery, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { MapPin, Truck, Navigation, Battery, CheckCircle2 } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface LiveTrackingMapProps {
   orders: Order[];
@@ -13,13 +14,16 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
   selectedOrder,
   onSelectOrder,
 }) => {
+  const { language } = useLanguage();
+  const isDe = language === 'de';
+
   const activeOrders = orders.filter(o => o.status === 'IN_TRANSIT' || o.status === 'PICKED_UP' || o.status === 'PRE_TRIP_CHECK');
   const currentOrder = selectedOrder || activeOrders[0] || orders[0];
 
   if (!currentOrder) {
     return (
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center text-slate-500">
-        No active medical transport route selected.
+        {isDe ? 'Keine aktive medizinische Transportroute ausgewählt.' : 'No active medical transport route selected.'}
       </div>
     );
   }
@@ -34,14 +38,16 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
         <div>
           <h3 className="text-base font-bold text-white flex items-center space-x-2">
             <Navigation className="w-5 h-5 text-emerald-400" />
-            <span>Live GPS Courier Dispatch Route Map</span>
+            <span>{isDe ? 'Live GPS Kurier-Flottenkarte & Routenverlauf' : 'Live GPS Courier Dispatch Route Map'}</span>
           </h3>
-          <p className="text-xs text-slate-400">German Highway & Urban Medical Logistics Tracking</p>
+          <p className="text-xs text-slate-400">
+            {isDe ? 'Echtzeit-Telemetrie & Streckenüberwachung (Wiesbaden & Hessen)' : 'German Highway & Urban Medical Logistics Tracking'}
+          </p>
         </div>
 
         {/* Order Selector */}
         <div className="flex items-center space-x-2 text-xs">
-          <span className="text-slate-400">Tracking:</span>
+          <span className="text-slate-400">{isDe ? 'Auftrag:' : 'Tracking:'}</span>
           <select
             value={currentOrder.id}
             onChange={(e) => {
@@ -73,18 +79,18 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
             </div>
             <div>
               <span className="font-bold text-sm text-white block">{currentOrder.trackingNumber}</span>
-              <span className="text-xs text-slate-400">{currentOrder.vehicleRegNumber || 'Van Fleet B-BD 7741'}</span>
+              <span className="text-xs text-slate-400">{currentOrder.vehicleRegNumber || 'WI-MG 7741 (Express Van)'}</span>
             </div>
           </div>
 
           <div className="flex items-center space-x-4 text-xs font-mono">
             <div>
-              <span className="text-slate-400 text-[10px] block">Transport Spec</span>
+              <span className="text-slate-400 text-[10px] block">{isDe ? 'Kühlvorgabe' : 'Transport Spec'}</span>
               <span className="text-emerald-400 font-semibold">{tempRange.label}</span>
             </div>
 
             <div>
-              <span className="text-slate-400 text-[10px] block">Live Thermo Sensor</span>
+              <span className="text-slate-400 text-[10px] block">{isDe ? 'Live-Temperatursensor' : 'Live Thermo Sensor'}</span>
               <span className={`font-bold ${latestTelemetry?.isBreach ? 'text-rose-400 animate-pulse' : 'text-emerald-400'}`}>
                 {latestTelemetry ? `${latestTelemetry.tempCelsius}°C` : '5.2°C [OK]'}
               </span>
@@ -103,7 +109,7 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
             <div className="relative z-10 bg-slate-900 border-2 border-amber-500 p-3 rounded-xl shadow-lg flex items-center space-x-2 max-w-[180px]">
               <MapPin className="w-5 h-5 text-amber-400 shrink-0" />
               <div className="truncate">
-                <span className="text-[10px] text-amber-400 font-bold uppercase block">ORIGIN CLINIC</span>
+                <span className="text-[10px] text-amber-400 font-bold uppercase block">{isDe ? 'ABHOLKLINIK' : 'ORIGIN CLINIC'}</span>
                 <span className="font-semibold text-xs text-white truncate block">{currentOrder.pickupClinicName}</span>
               </div>
             </div>
@@ -112,9 +118,9 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
             <div className="relative z-10 bg-emerald-600 border-2 border-white p-3 rounded-xl shadow-xl flex items-center space-x-2 animate-bounce">
               <Truck className="w-6 h-6 text-white" />
               <div className="hidden sm:block">
-                <span className="text-[10px] text-emerald-100 font-bold block uppercase">IN TRANSIT</span>
+                <span className="text-[10px] text-emerald-100 font-bold block uppercase">{isDe ? 'AUF DEM WEG' : 'IN TRANSIT'}</span>
                 <span className="font-mono text-xs font-bold text-white">
-                  {latestTelemetry ? `${latestTelemetry.gpsLatitude.toFixed(3)}, ${latestTelemetry.gpsLongitude.toFixed(3)}` : '52.520, 13.405'}
+                  {latestTelemetry ? `${latestTelemetry.gpsLatitude.toFixed(3)}, ${latestTelemetry.gpsLongitude.toFixed(3)}` : '50.082, 8.240'}
                 </span>
               </div>
             </div>
@@ -123,7 +129,7 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
             <div className="relative z-10 bg-slate-900 border-2 border-emerald-500 p-3 rounded-xl shadow-lg flex items-center space-x-2 max-w-[180px]">
               <MapPin className="w-5 h-5 text-emerald-400 shrink-0" />
               <div className="truncate">
-                <span className="text-[10px] text-emerald-400 font-bold uppercase block">DESTINATION LAB</span>
+                <span className="text-[10px] text-emerald-400 font-bold uppercase block">{isDe ? 'ZIELLABOR' : 'DESTINATION LAB'}</span>
                 <span className="font-semibold text-xs text-white truncate block">{currentOrder.deliveryLabName}</span>
               </div>
             </div>
@@ -134,29 +140,31 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
         {/* Bottom Telemetry Details */}
         <div className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
           <div className="bg-slate-900/90 border border-slate-800 p-2.5 rounded-lg">
-            <span className="text-slate-400 text-[10px] block">Specimen Category</span>
+            <span className="text-slate-400 text-[10px] block">{isDe ? 'Probenkategorie' : 'Specimen Category'}</span>
             <span className="text-slate-200 font-semibold truncate block">{currentOrder.sampleCategory}</span>
           </div>
 
           <div className="bg-slate-900/90 border border-slate-800 p-2.5 rounded-lg">
-            <span className="text-slate-400 text-[10px] block">P650 Packaging</span>
+            <span className="text-slate-400 text-[10px] block">{isDe ? 'P650 Verpackung' : 'P650 Packaging'}</span>
             <span className="text-emerald-400 font-semibold flex items-center space-x-1">
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Triple Container Certified</span>
+              <span>{isDe ? 'Dreifach-Verpackung Geprüft' : 'Triple Container Certified'}</span>
             </span>
           </div>
 
           <div className="bg-slate-900/90 border border-slate-800 p-2.5 rounded-lg">
-            <span className="text-slate-400 text-[10px] block">Sensor Battery</span>
+            <span className="text-slate-400 text-[10px] block">{isDe ? 'Sensor-Batterie' : 'Sensor Battery'}</span>
             <span className="text-slate-200 font-semibold flex items-center space-x-1">
               <Battery className="w-3.5 h-3.5 text-emerald-400" />
-              <span>{latestTelemetry?.batteryLevelPercent || 98}% Active</span>
+              <span>{latestTelemetry?.batteryLevelPercent || 98}% {isDe ? 'Aktiv' : 'Active'}</span>
             </span>
           </div>
 
           <div className="bg-slate-900/90 border border-slate-800 p-2.5 rounded-lg">
-            <span className="text-slate-400 text-[10px] block">Barcodes Registered</span>
-            <span className="text-slate-200 font-mono font-semibold">{currentOrder.barcodeList.length} Item(s) Scanned</span>
+            <span className="text-slate-400 text-[10px] block">{isDe ? 'Erfasste Barcodes' : 'Barcodes Registered'}</span>
+            <span className="text-slate-200 font-mono font-semibold">
+              {currentOrder.barcodeList.length} {isDe ? 'Proben gescannt' : 'Item(s) Scanned'}
+            </span>
           </div>
         </div>
 

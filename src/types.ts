@@ -1,6 +1,8 @@
 // Types & Interfaces for UN 3373 Category B Biological Specimen Logistics
 
-export type Role = 'ADMIN' | 'DISPATCHER' | 'DRIVER' | 'CLIENT_CLINIC' | 'LAB_STAFF';
+export type Role = 'ADMIN' | 'DISPATCHER' | 'DRIVER' | 'ORG_STAFF' | 'PATIENT' | 'CLIENT_CLINIC' | 'LAB_STAFF';
+
+export type OrganizationType = 'HOSPITAL' | 'CLINIC' | 'PHARMACY' | 'CARE_HOME' | 'LABORATORY' | 'INDIVIDUAL_PATIENT';
 
 export type TransportType = 'AMBIENT_15_25C' | 'REFRIGERATED_2_8C' | 'FROZEN_MINUS_20C';
 
@@ -10,6 +12,7 @@ export type OrderStatus =
   | 'PICKED_UP'
   | 'IN_TRANSIT'
   | 'DELIVERED'
+  | 'QUARANTINED_UNSYNCED'
   | 'CANCELLED';
 
 export type CancelReasonCode = 
@@ -20,18 +23,54 @@ export type CancelReasonCode =
   | 'CLINIC_CANCELLED'
   | 'OTHER';
 
+export type AuthTier = 'TIER_1_REGISTERED_USER_PIN' | 'TIER_2_OTP_VERIFIED' | 'TIER_3_SIGNATURE_ONLY';
+
+export type ConflictResolution = 'NONE' | 'SERVER_WINS' | 'REJECTED_STALE' | 'MANUAL_RESOLVED';
+
+export type SpecimenCategory = 
+  | 'UN3373_CATEGORY_B_SPECIMEN'
+  | 'PHARMACEUTICAL_APBETRO'
+  | 'STEM_CELLS_APHERESIS'
+  | 'CRYOPRESERVED_SPECIMEN';
+
+export interface Organization {
+  id: string;
+  name: string;
+  type: OrganizationType;
+  contractNumber?: string;
+  addressStreet: string;
+  postalCode: string;
+  city: string;
+  state: string;
+  contactPhone: string;
+  contactEmail: string;
+  active: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface RetentionPolicy {
+  id: string;
+  code: string;
+  name: string;
+  retentionPeriodDays: number;
+  legalBasis: string;
+  anonymizeInsteadOfDelete: boolean;
+  createdAt?: string;
+}
+
 export interface ContractBillingConfig {
   contractId: string;
   clinicId: string;
   clinicName: string;
   pricingModel: 'FIXED_ROUTE' | 'PER_BOX' | 'DISTANCE_BASED' | 'MONTHLY_RETAINER';
-  baseRateEur: number; // e.g., 35 for route, 15 for box base, 10 for distance base, 850 for retainer
-  perBoxRateEur?: number; // e.g. 5
-  perKmRateEur?: number; // e.g. 1.80
-  monthlyIncludedTransports?: number; // e.g. 30
-  overagePerTransportEur?: number; // e.g. 28
+  baseRateEur: number;
+  perBoxRateEur?: number;
+  perKmRateEur?: number;
+  monthlyIncludedTransports?: number;
+  overagePerTransportEur?: number;
   billingCycle: 'MONTHLY' | 'BI_WEEKLY';
-  paymentTermsDays: number; // e.g. 14 days
+  paymentTermsDays: number;
   contractStartDate: string;
   active: boolean;
 }
@@ -41,7 +80,7 @@ export interface MonthlyInvoice {
   invoiceNumber: string;
   clinicName: string;
   contractId: string;
-  billingPeriod: string; // e.g. "Juli 2026"
+  billingPeriod: string;
   issueDate: string;
   dueDate: string;
   totalTransports: number;
@@ -67,10 +106,13 @@ export interface User {
   role: Role;
   phone?: string;
   organization?: string;
-  contractNumber?: string; // Required for Clinics & Laboratories
+  organizationId?: string;
+  pinCodeHash?: string;
+  devicePublicKey?: string;
+  contractNumber?: string;
   facilityType?: 'CLINIC' | 'LABORATORY' | 'HQ' | 'COURIER';
   facilityAddress?: string;
-  vehicleRegNumber?: string; // For Driver accounts
+  vehicleRegNumber?: string;
   active?: boolean;
   createdAt?: string;
 }
@@ -87,10 +129,13 @@ export interface CreateUserPayload {
   role: Role;
   phone?: string;
   organization?: string;
+  organizationId?: string;
   contractNumber?: string;
   facilityType?: 'CLINIC' | 'LABORATORY' | 'HQ' | 'COURIER';
   facilityAddress?: string;
   vehicleRegNumber?: string;
+  pinCode?: string;
+  devicePublicKey?: string;
 }
 
 export interface PreTripCheck {
@@ -114,12 +159,16 @@ export interface ChainOfCustody {
   id: string;
   orderId: string;
   eventType: 'PICKUP_SIGNATURE' | 'DELIVERY_SIGNATURE';
+  authTier?: AuthTier;
   staffName: string;
   staffTitle?: string;
   signatureBase64: string;
+  cryptoSignature?: string;
   pinCodeVerified: boolean;
   scannedBarcodes: string[];
   timestamp: string;
+  clientRecordedAt?: string;
+  serverIngestedAt?: string;
   gpsLatitude: number;
   gpsLongitude: number;
   gpsAccuracyMeters: number;
@@ -146,6 +195,7 @@ export interface AuditLog {
   previousState?: OrderStatus | null;
   newState: OrderStatus;
   actionDescription: string;
+  conflictResolution?: ConflictResolution;
   userId: string;
   userName: string;
   userRole: Role;
@@ -160,15 +210,19 @@ export interface AuditLog {
 export interface Order {
   id: string;
   trackingNumber: string;
+  publicAccessToken?: string;
   status: OrderStatus;
   transportType: TransportType;
+  specimenCategory?: SpecimenCategory;
   
-  // Addresses & Contacts
+  // Polymorphic Organization Dual Relations
+  originOrganizationId?: string;
   pickupClinicName: string;
   pickupAddress: string;
   pickupDepartment?: string;
   pickupContactPhone: string;
   
+  destinationOrgId?: string;
   deliveryLabName: string;
   deliveryAddress: string;
   deliveryDepartment?: string;
@@ -180,9 +234,9 @@ export interface Order {
   scheduledDeliveryBy: string;
 
   // Specimen Metadata (UN 3373 Cat B)
-  sampleCategory: string; // e.g. "UN 3373 Biological Substance Category B (Blood)"
+  sampleCategory: string;
   specimenBoxCount: number;
-  barcodeList: string[]; // e.g. ["SPEC-9901-A", "SPEC-9901-B"]
+  barcodeList: string[];
   specialNotes?: string;
   p650Verified: boolean;
 
@@ -193,9 +247,17 @@ export interface Order {
   createdByOrg: string;
   vehicleRegNumber?: string;
 
+  // Conflict & Quarantine
+  quarantineReason?: string;
+
   // Cancellation
   cancellationReason?: CancelReasonCode;
   cancellationNotes?: string;
+
+  // Data Retention
+  retentionPolicyId?: string;
+  retentionExpiresAt?: string;
+  anonymizedAt?: string;
 
   // Dynamic Pricing Breakdown
   calculatedPriceEur?: number;
@@ -233,11 +295,11 @@ export interface Order {
 export type GermanFederalState = 'HE' | 'BY' | 'NW' | 'BW' | 'BE' | 'NI' | 'ALL_MIX';
 
 export interface BaseTariffSettings {
-  basePickupFeeEur: number; // e.g. 25.00
-  ratePerKmEur: number; // e.g. 1.85
-  expressEmergencySurchargeEur: number; // e.g. 20.00
-  weekendMarkupPercent: number; // e.g. 50 (+50%)
-  holidayMarkupPercent: number; // e.g. 100 (+100%)
+  basePickupFeeEur: number;
+  ratePerKmEur: number;
+  expressEmergencySurchargeEur: number;
+  weekendMarkupPercent: number;
+  holidayMarkupPercent: number;
   selectedState: GermanFederalState;
 }
 
@@ -245,11 +307,11 @@ export type OperationalMode = 'SOLO' | 'FLEET';
 
 export interface VacationWindow {
   id: string;
-  title: string; // e.g. "Ostermarkt Pause 2026"
-  startDate: string; // YYYY-MM-DD
-  endDate: string; // YYYY-MM-DD
-  activeCoverPartnerName: string; // e.g. "Express Courier Hessen GmbH"
-  activeCoverPartnerPhone: string; // e.g. "+49 69 987654"
+  title: string;
+  startDate: string;
+  endDate: string;
+  activeCoverPartnerName: string;
+  activeCoverPartnerPhone: string;
   allowEmergencyDelegation: boolean;
   notes?: string;
 }
@@ -276,9 +338,11 @@ export interface PendingOfflineAction {
   actionType: 'ACCEPT' | 'PRE_TRIP_CHECK' | 'PICKUP' | 'TELEMETRY' | 'DELIVER' | 'CANCEL';
   payload: any;
   timestamp: string;
+  clientRecordedAt?: string;
   gpsLatitude: number;
   gpsLongitude: number;
   deviceId: string;
+  cryptoSignature?: string;
   retryCount: number;
 }
 
@@ -305,7 +369,7 @@ export interface EmailForwardingSettings {
   attachTelemetryPdf: boolean;
   attachChainOfCustodyPdf: boolean;
   forwardingMode: 'INSTANT' | 'DAILY_DIGEST';
-  digestTimeOfDay?: string; // e.g. "18:00"
+  digestTimeOfDay?: string;
   lastUpdated: string;
 }
 

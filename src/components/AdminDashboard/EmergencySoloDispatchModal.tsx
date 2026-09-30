@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { AlertTriangle, Copy, CheckCircle2, MessageSquare, Mail, Phone, ExternalLink, ShieldAlert, X, Send } from 'lucide-react';
-import { Order, SubcontractorEmergencyLog } from '../../types';
+import { AlertTriangle, Copy, CheckCircle2, MessageSquare, Mail, ExternalLink, ShieldAlert, X, Send } from 'lucide-react';
+import { Order } from '../../types';
 import { logSubcontractorEmergency } from '../../lib/db';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface EmergencySoloDispatchModalProps {
   isOpen: boolean;
@@ -15,14 +16,17 @@ export const EmergencySoloDispatchModal: React.FC<EmergencySoloDispatchModalProp
   isOpen,
   onClose,
   order,
-  driverGpsCoords = { lat: 50.0912, lng: 8.6432 },
+  driverGpsCoords = { lat: 50.0826, lng: 8.2400 },
   onSuccessDelegated
 }) => {
+  const { language } = useLanguage();
+  const isDe = language === 'de';
+
   const [copiedSms, setCopiedSms] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
-  const [subcontractorName, setSubcontractorName] = useState('Express Courier Hessen GmbH');
+  const [subcontractorName, setSubcontractorName] = useState(isDe ? 'Express Kurier Hessen GmbH' : 'Express Courier Hessen GmbH');
   const [subcontractorPhone, setSubcontractorPhone] = useState('+49 69 9882 200');
-  const [emergencyReason, setEmergencyReason] = useState('Personal Emergency / Courier Fleet Capacity Exceeded');
+  const [emergencyReason, setEmergencyReason] = useState(isDe ? 'Persönlicher Notfall / Solo-Kapazitätsgrenze erreicht' : 'Personal Emergency / Courier Fleet Capacity Exceeded');
   const [isLogged, setIsLogged] = useState(false);
 
   if (!isOpen || !order) return null;
@@ -30,17 +34,27 @@ export const EmergencySoloDispatchModal: React.FC<EmergencySoloDispatchModalProp
   const mapsUrl = `https://maps.google.com/?q=${driverGpsCoords.lat},${driverGpsCoords.lng}`;
 
   // Pre-formatted SMS / Instant Messenger Dispatch Template
-  const smsDispatchText = `🚨 MEDIGO NOTFALL-DELEGIERUNG (UN 3373)
+  const smsDispatchText = isDe
+    ? `🚨 MEDIGO NOTFALL-DELEGIERUNG (UN 3373)
 Auftrag: ${order.trackingNumber} (${order.sampleCategory})
-Pick: ${order.pickupClinicName}, ${order.pickupAddress} (Tel: ${order.pickupContactPhone})
+Abholung: ${order.pickupClinicName}, ${order.pickupAddress} (Tel: ${order.pickupContactPhone})
 Ziel: ${order.deliveryLabName}, ${order.deliveryAddress}
 Temp-Vorgabe: ${order.transportType} (${order.specimenBoxCount} Boxen)
 Fahrer GPS: ${driverGpsCoords.lat.toFixed(4)}, ${driverGpsCoords.lng.toFixed(4)} (${mapsUrl})
 Grund: ${emergencyReason}
-Zentrale Kontakt: Hans Schmidt +49 171 9882310`;
+Zentrale Kontakt: Hans Schmidt +49 171 9882310`
+    : `🚨 MEDIGO EMERGENCY DELEGATION (UN 3373)
+Order: ${order.trackingNumber} (${order.sampleCategory})
+Pick: ${order.pickupClinicName}, ${order.pickupAddress} (Tel: ${order.pickupContactPhone})
+Destination: ${order.deliveryLabName}, ${order.deliveryAddress}
+Temp Spec: ${order.transportType} (${order.specimenBoxCount} Boxes)
+Driver GPS: ${driverGpsCoords.lat.toFixed(4)}, ${driverGpsCoords.lng.toFixed(4)} (${mapsUrl})
+Reason: ${emergencyReason}
+Dispatch Contact: Hans Schmidt +49 171 9882310`;
 
   // Pre-formatted Formal Email Dispatch Template
-  const emailDispatchText = `BETREFF: Dringende Unterauftrags-Übernahme UN 3373 Proben-Transport ${order.trackingNumber}
+  const emailDispatchText = isDe
+    ? `BETREFF: Dringende Unterauftrags-Übernahme UN 3373 Proben-Transport ${order.trackingNumber}
 
 Sehr geehrtes Dispatching-Team von ${subcontractorName},
 
@@ -68,11 +82,44 @@ aufgrund einer ungeplanten Betriebsstörung / Notfall-Kapazitätspause übergebe
 • Live Google Maps Link: ${mapsUrl}
 • Grund der Weiterleitung: ${emergencyReason}
 
-Bitte bestätigen Sie die Übernahme dieses Auftrags kurzfristig per Antworte-Mail oder Telefonat an +49 171 9882310.
+Bitte bestätigen Sie die Übernahme dieses Auftrags kurzfristig per Antwort-Mail oder Telefonat an +49 171 9882310.
 
 Mit freundlichen Grüßen,
 MediGo Hessen Notfall-Disposition
-Frankfurt am Main`;
+Wiesbaden Zentrale`
+    : `SUBJECT: Urgent Subcontractor Delegation UN 3373 Specimen Transport ${order.trackingNumber}
+
+Dear Dispatching Team of ${subcontractorName},
+
+Due to an unforeseen operational pause or solo capacity limit, we hereby transfer the following urgent medical transport order for immediate handover:
+
+--- ORDER DETAILS ---
+• Tracking Number: ${order.trackingNumber}
+• Specimen Category: ${order.sampleCategory} (UN 3373 Category B)
+• Specimen Box Count: ${order.specimenBoxCount} P650 Insulated Box(es)
+• Temperature Requirement: ${order.transportType}
+
+--- ROUTE & CONTACTS ---
+• Pickup Clinic: ${order.pickupClinicName}
+  Address: ${order.pickupAddress}
+  Department: ${order.pickupDepartment || 'Specimen Ward'}
+  Contact Phone: ${order.pickupContactPhone}
+
+• Destination Lab: ${order.deliveryLabName}
+  Address: ${order.deliveryAddress}
+  Department: ${order.deliveryDepartment || 'Lab Intake'}
+  Contact Phone: ${order.deliveryContactPhone}
+
+--- DRIVER GPS & TRACKING ---
+• Current Driver Coordinates: ${driverGpsCoords.lat}, ${driverGpsCoords.lng}
+• Live Google Maps Link: ${mapsUrl}
+• Delegation Reason: ${emergencyReason}
+
+Please confirm acceptance of this order via return email or phone to +49 171 9882310.
+
+Best regards,
+MediGo Hessen Emergency Dispatch
+Wiesbaden Hub`;
 
   const handleCopySms = () => {
     navigator.clipboard.writeText(smsDispatchText);
@@ -93,7 +140,7 @@ Frankfurt am Main`;
   };
 
   const handleOpenMailto = () => {
-    const subject = encodeURIComponent(`URGENT: UN 3373 Transport Delegation - ${order.trackingNumber}`);
+    const subject = encodeURIComponent(isDe ? `DRINGEND: UN 3373 Transport Delegierung - ${order.trackingNumber}` : `URGENT: UN 3373 Transport Delegation - ${order.trackingNumber}`);
     const body = encodeURIComponent(emailDispatchText);
     window.open(`mailto:dispatch@express-courier-hessen.de?subject=${subject}&body=${body}`, '_blank');
   };
@@ -126,7 +173,9 @@ Frankfurt am Main`;
           orderId: order.id,
           previousState: order.status,
           newState: order.status,
-          actionDescription: `🚨 SOLO EMERGENCY DELEGATION: Order assigned to subcontractor ${subcontractorName} (${subcontractorPhone}). Incident logged.`,
+          actionDescription: isDe
+            ? `🚨 SOLO NOTFALL-DELEGIERUNG: Auftrag an Subunternehmer ${subcontractorName} (${subcontractorPhone}) übergeben.`
+            : `🚨 SOLO EMERGENCY DELEGATION: Order assigned to subcontractor ${subcontractorName} (${subcontractorPhone}). Incident logged.`,
           userId: 'SYS-SOLO-DISPATCH',
           userName: 'Solo Operator Emergency Engine',
           userRole: 'DISPATCHER',
@@ -156,8 +205,12 @@ Frankfurt am Main`;
               <AlertTriangle className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="font-bold text-base text-amber-200">Solo Operator Emergency Dispatch & Subcontractor Delegation</h3>
-              <p className="text-xs text-amber-300/80">Immediate UN 3373 Partner Handoff Template (Order #{order.trackingNumber})</p>
+              <h3 className="font-bold text-base text-amber-200">
+                {isDe ? 'Solo-Kurier Notfall-Disposition & Subunternehmer-Delegation' : 'Solo Operator Emergency Dispatch & Subcontractor Delegation'}
+              </h3>
+              <p className="text-xs text-amber-300/80">
+                {isDe ? `Sofort-Übergabe UN 3373 an Partnerkurier (Auftrag #${order.trackingNumber})` : `Immediate UN 3373 Partner Handoff Template (Order #${order.trackingNumber})`}
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded-lg">
@@ -171,7 +224,7 @@ Frankfurt am Main`;
           {/* Subcontractor & Reason Form */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-950 border border-slate-800 p-3.5 rounded-xl">
             <div>
-              <label className="block text-slate-400 font-medium mb-1">Partner Subcontractor Name</label>
+              <label className="block text-slate-400 font-medium mb-1">{isDe ? 'Name des Partnerunternehmers' : 'Partner Subcontractor Name'}</label>
               <input
                 type="text"
                 value={subcontractorName}
@@ -180,7 +233,7 @@ Frankfurt am Main`;
               />
             </div>
             <div>
-              <label className="block text-slate-400 font-medium mb-1">Subcontractor Hotline / Phone</label>
+              <label className="block text-slate-400 font-medium mb-1">{isDe ? 'Telefon / Notfall-Hotline' : 'Subcontractor Hotline / Phone'}</label>
               <input
                 type="text"
                 value={subcontractorPhone}
@@ -189,16 +242,24 @@ Frankfurt am Main`;
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-slate-400 font-medium mb-1">Incident / Emergency Pause Reason</label>
+              <label className="block text-slate-400 font-medium mb-1">{isDe ? 'Grund der Notfall-Delegation' : 'Incident / Emergency Pause Reason'}</label>
               <select
                 value={emergencyReason}
                 onChange={(e) => setEmergencyReason(e.target.value)}
                 className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-white"
               >
-                <option value="Personal Emergency / Courier Fleet Capacity Exceeded">Personal Emergency / Solo Capacity Limit</option>
-                <option value="Vehicle Breakdown / Mechanical Failure">Vehicle Breakdown / Tire Failure on Highway</option>
-                <option value="Hospital Pickup Lockdown / Severe Delay">Hospital Pickup Delay / Road Blockade</option>
-                <option value="Thermal Container Breach / Sensor Recalibration">Thermal Packaging Recalibration Needed</option>
+                <option value={isDe ? 'Persönlicher Notfall / Solo-Kapazitätsgrenze erreicht' : 'Personal Emergency / Courier Fleet Capacity Exceeded'}>
+                  {isDe ? 'Persönlicher Notfall / Solo-Kapazitätsgrenze' : 'Personal Emergency / Solo Capacity Limit'}
+                </option>
+                <option value={isDe ? 'Fahrzeugpanne / Technischer Defekt auf der Autobahn' : 'Vehicle Breakdown / Mechanical Failure'}>
+                  {isDe ? 'Fahrzeugpanne / Reifenschaden auf Autobahn' : 'Vehicle Breakdown / Tire Failure on Highway'}
+                </option>
+                <option value={isDe ? 'Klinikverzögerung / Quarantäne-Sperre vor Ort' : 'Hospital Pickup Lockdown / Severe Delay'}>
+                  {isDe ? 'Klinikverzögerung / Straßensperrung' : 'Hospital Pickup Delay / Road Blockade'}
+                </option>
+                <option value={isDe ? 'Kühlbox-Abweichung / Sensor-Rekalibrierung nötig' : 'Thermal Container Breach / Sensor Recalibration'}>
+                  {isDe ? 'Kühlbox-Rekalibrierung erforderlich' : 'Thermal Packaging Recalibration Needed'}
+                </option>
               </select>
             </div>
           </div>
@@ -208,7 +269,7 @@ Frankfurt am Main`;
             <div className="flex items-center justify-between">
               <span className="font-bold text-amber-300 text-xs flex items-center space-x-1.5">
                 <MessageSquare className="w-4 h-4 text-emerald-400" />
-                <span>1. Pre-Formatted SMS / WhatsApp Dispatch Text</span>
+                <span>{isDe ? '1. Vorformatierte SMS / WhatsApp Kurier-Nachricht' : '1. Pre-Formatted SMS / WhatsApp Dispatch Text'}</span>
               </span>
               <div className="flex items-center space-x-2">
                 <button
@@ -216,7 +277,7 @@ Frankfurt am Main`;
                   className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1 rounded-lg text-[11px] font-bold flex items-center space-x-1"
                 >
                   {copiedSms ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedSms ? 'Copied Text!' : 'Copy SMS'}</span>
+                  <span>{copiedSms ? (isDe ? 'Text kopiert!' : 'Copied Text!') : (isDe ? 'SMS Kopieren' : 'Copy SMS')}</span>
                 </button>
                 <button
                   onClick={handleOpenWhatsapp}
@@ -237,7 +298,7 @@ Frankfurt am Main`;
             <div className="flex items-center justify-between">
               <span className="font-bold text-amber-300 text-xs flex items-center space-x-1.5">
                 <Mail className="w-4 h-4 text-cyan-400" />
-                <span>2. Formal Email Subcontractor Delegation Letter</span>
+                <span>{isDe ? '2. Formeller E-Mail-Übernahmeauftrag' : '2. Formal Email Subcontractor Delegation Letter'}</span>
               </span>
               <div className="flex items-center space-x-2">
                 <button
@@ -245,14 +306,14 @@ Frankfurt am Main`;
                   className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1 rounded-lg text-[11px] font-bold flex items-center space-x-1"
                 >
                   {copiedEmail ? <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedEmail ? 'Copied Email!' : 'Copy Email'}</span>
+                  <span>{copiedEmail ? (isDe ? 'E-Mail kopiert!' : 'Copied Email!') : (isDe ? 'E-Mail Kopieren' : 'Copy Email')}</span>
                 </button>
                 <button
                   onClick={handleOpenMailto}
                   className="bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-1 rounded-lg text-[11px] font-bold flex items-center space-x-1"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
-                  <span>Mail App</span>
+                  <span>{isDe ? 'Mail Programm' : 'Mail App'}</span>
                 </button>
               </div>
             </div>
@@ -265,7 +326,11 @@ Frankfurt am Main`;
           <div className="pt-2 flex items-center justify-between border-t border-slate-800">
             <div className="flex items-center space-x-2 text-slate-400 text-[11px]">
               <ShieldAlert className="w-4 h-4 text-amber-400" />
-              <span>Clicking confirm logs an immutable audit trail entry and sets order to subcontractor delegation.</span>
+              <span>
+                {isDe
+                  ? 'Klicken erzeugt einen GoBD-Audit-Eintrag und setzt den Status auf Unterauftrag.'
+                  : 'Clicking confirm logs an immutable audit trail entry and sets order to subcontractor delegation.'}
+              </span>
             </div>
 
             <button
@@ -278,7 +343,7 @@ Frankfurt am Main`;
               }`}
             >
               {isLogged ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Send className="w-4 h-4" />}
-              <span>{isLogged ? 'Delegation Logged!' : 'Confirm & Log Subcontractor Handover'}</span>
+              <span>{isLogged ? (isDe ? 'Delegation protokolliert!' : 'Delegation Logged!') : (isDe ? 'Übergabe bestätigen & protokollieren' : 'Confirm & Log Subcontractor Handover')}</span>
             </button>
           </div>
 

@@ -1,11 +1,11 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Language, getInitialLanguage, setLanguagePreference, TRANSLATIONS, t as translate } from '../lib/i18n';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { Language, getInitialLanguage, setLanguagePreference, t as translate } from '../lib/i18n';
 
-interface LanguageContextType {
+export interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
   toggleLanguage: () => void;
-  t: (key: string) => string;
+  t: (key: string, fallback?: string | { de: string; en: string }) => string;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
@@ -23,8 +23,8 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
     setLanguage(nextLang);
   };
 
-  const t = (key: string) => {
-    return translate(key, language);
+  const t = (key: string, fallback?: string | { de: string; en: string }) => {
+    return translate(key, fallback, language);
   };
 
   return (
@@ -42,7 +42,7 @@ export const useLanguage = (): LanguageContextType => {
       language: 'de',
       setLanguage: () => {},
       toggleLanguage: () => {},
-      t: (key: string) => translate(key, 'de'),
+      t: (key: string, fallback?: string | { de: string; en: string }) => translate(key, fallback, 'de'),
     };
   }
   return context;

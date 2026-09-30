@@ -1,39 +1,34 @@
 import React, { useState } from 'react';
-import medigoLogoImg from '../../assets/images/medigo_logo_1785514597465.jpg';
-import medigoNightImg from '../../assets/images/medigo_night_fleet_1785703838127.jpg';
-import medigoHeroDayImg from '../../assets/images/medigo_van_hero_day_1785705443992.jpg';
-import medigoHeroNightImg from '../../assets/images/medigo_courier_hero_night_1785705461334.jpg';
 import { 
   Building2, 
   Truck, 
   ShieldCheck, 
-  Lock, 
   ArrowRight, 
-  CheckCircle2, 
-  Key, 
-  Smartphone, 
-  Scale, 
-  Thermometer, 
+  Lock, 
   MapPin, 
-  Zap,
-  Clock,
-  Award,
-  Share2,
-  Copy,
-  ChevronRight,
-  Sparkles,
-  Sun,
-  Moon,
-  Globe,
-  Compass
+  Thermometer, 
+  Zap, 
+  Compass, 
+  Globe, 
+  Sun, 
+  Moon, 
+  Smartphone, 
+  Copy, 
+  CheckCircle2, 
+  Search, 
+  ChevronRight 
 } from 'lucide-react';
 import { Role, User } from '../../types';
 import { INITIAL_USERS } from '../../lib/db';
 import { useLanguage } from '../../context/LanguageContext';
+import medigoLogoImg from '../../assets/images/medigo_logo_1785514597465.jpg';
+import medigoHeroDayImg from '../../assets/images/medigo_hero_day_1785704976788.jpg';
+import medigoHeroNightImg from '../../assets/images/medigo_hero_night_1785704992896.jpg';
+import medigoNightImg from '../../assets/images/medigo_night_fleet_1785703838127.jpg';
 
 interface HomePageLandingProps {
-  onLogin: (user: User, initialViewMode?: 'DRIVER_MOBILE' | 'DISPATCH_DASHBOARD' | 'CLIENT_PORTAL' | 'LEGAL_COMPLIANCE') => void;
-  onOpenMobileInstall: () => void;
+  onLogin: (user: User, viewMode: 'DRIVER_MOBILE' | 'DISPATCH_DASHBOARD' | 'CLIENT_PORTAL' | 'PATIENT_TRACKING') => void;
+  onOpenMobileInstall?: () => void;
   isNightShift?: boolean;
   onToggleNightShift?: () => void;
 }
@@ -45,6 +40,8 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
   onToggleNightShift
 }) => {
   const { language, toggleLanguage, t } = useLanguage();
+  const isDe = language === 'de';
+
   const [selectedRole, setSelectedRole] = useState<Role>('CLIENT_CLINIC');
   const [emailInput, setEmailInput] = useState('probeneingang@kgu.de');
   const [passwordInput, setPasswordInput] = useState('••••••••••••');
@@ -67,7 +64,12 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
     onLogin(user, viewMode);
   };
 
-  const shareText = `🏥 MediGo Medical Logistics (Hauptstandort Wiesbaden) — Sandbox Credentials:
+  const shareText = isDe 
+    ? `🏥 MediGo Medizinische Logistik (Hauptstandort Wiesbaden) — Sandbox Zugangsdaten:
+• KLINIK-PORTAL: probeneingang@kgu.de (Vertrag: CTR-2026-UKF)
+• FAHRER-APP: Hans Schmidt (PIN: 1044, Fahrzeug: WI-MG 7741)
+• LEITSTAND / CEO: dispatch@medigo-hessen.de`
+    : `🏥 MediGo Medical Logistics (Wiesbaden HQ) — Sandbox Credentials:
 • CLINIC PORTAL: probeneingang@kgu.de (Contract: CTR-2026-UKF)
 • DRIVER APP: Hans Schmidt (PIN: 1044, Vehicle: WI-MG 7741)
 • CEO DISPATCH: dispatch@medigo-hessen.de`;
@@ -124,10 +126,10 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                   ? 'bg-slate-800 hover:bg-slate-700 text-slate-100 border-slate-700'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-900 border-slate-300'
               }`}
-              title="Switch Language (German / English)"
+              title={isDe ? 'Sprache wechseln (Deutsch / English)' : 'Switch Language (German / English)'}
             >
               <Globe className="w-3.5 h-3.5 text-red-500" />
-              <span>{language === 'de' ? '🇩🇪 DE' : '🇬🇧 EN'}</span>
+              <span>{isDe ? '🇩🇪 DE' : '🇬🇧 EN'}</span>
             </button>
 
             {onToggleNightShift && (
@@ -138,23 +140,37 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                     ? 'bg-indigo-950 border-indigo-600 text-indigo-200 hover:bg-indigo-900'
                     : 'bg-amber-100 border-amber-300 text-amber-900 hover:bg-amber-200'
                 }`}
-                title="Toggle Clear (Light) Mode vs Dark Mode"
+                title={isDe ? 'Tag- / Nachtmodus umschalten' : 'Toggle Day / Night Mode'}
               >
                 {isNightShift ? <Moon className="w-3.5 h-3.5 text-indigo-400" /> : <Sun className="w-3.5 h-3.5 text-amber-600" />}
-                <span>{isNightShift ? '🌙 Dark Mode' : '☀️ Clear Mode'}</span>
+                <span>{isNightShift ? (isDe ? '🌙 Nachtmodus' : '🌙 Dark Mode') : (isDe ? '☀️ Tagmodus' : '☀️ Clear Mode')}</span>
+              </button>
+            )}
+
+            {onOpenMobileInstall && (
+              <button
+                onClick={onOpenMobileInstall}
+                className={`hidden md:flex items-center space-x-1.5 border px-3 py-1.5 rounded-lg transition-all ${
+                  isNightShift
+                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+                }`}
+              >
+                <Smartphone className="w-3.5 h-3.5 text-emerald-500" />
+                <span>{t('nav.get_app')}</span>
               </button>
             )}
 
             <button
-              onClick={onOpenMobileInstall}
-              className={`hidden md:flex items-center space-x-1.5 border px-3 py-1.5 rounded-lg transition-all ${
+              onClick={() => onLogin({ id: 'PATIENT-ANON', email: 'tracking@medigo-hessen.de', name: isDe ? 'Patient / Empfänger' : 'Patient / Recipient', role: 'PATIENT' }, 'PATIENT_TRACKING')}
+              className={`flex items-center space-x-1.5 border px-3 py-1.5 rounded-lg transition-all font-bold ${
                 isNightShift
-                  ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+                  ? 'bg-slate-800 hover:bg-slate-700 text-white border-slate-700'
+                  : 'bg-white hover:bg-slate-50 text-slate-900 border-slate-300'
               }`}
             >
-              <Smartphone className="w-3.5 h-3.5 text-emerald-500" />
-              <span>{t('nav.get_app')}</span>
+              <Search className="w-3.5 h-3.5 text-red-500" />
+              <span>{isDe ? 'Patienten-Tracking' : 'Patient Tracking'}</span>
             </button>
 
             <button
@@ -180,7 +196,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
             referrerPolicy="no-referrer"
             className="w-full h-full object-cover object-center transform scale-100 transition-all duration-700 filter brightness-90"
           />
-          {/* Backdrop Masking Gradient for Crystal Clear Image Visibility and Text Legibility */}
+          {/* Backdrop Masking Gradient */}
           <div className={`absolute inset-0 transition-all duration-500 ${
             isNightShift 
               ? 'bg-gradient-to-r from-slate-950/92 via-slate-950/85 to-slate-900/65' 
@@ -226,21 +242,21 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1 text-xs text-slate-100">
                 <div className="bg-slate-900/80 border border-slate-700/80 backdrop-blur-md p-2.5 rounded-xl flex items-center space-x-2 shadow-lg">
                   <Thermometer className="w-4 h-4 text-red-400 shrink-0" />
-                  <span className="font-medium">2-8°C & 15-25°C Logs</span>
+                  <span className="font-medium">{isDe ? '2-8°C & 15-25°C Protokoll' : '2-8°C & 15-25°C Logs'}</span>
                 </div>
                 <div className="bg-slate-900/80 border border-slate-700/80 backdrop-blur-md p-2.5 rounded-xl flex items-center space-x-2 shadow-lg">
                   <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span className="font-medium">UN 3373 & P650 Compliant</span>
+                  <span className="font-medium">{isDe ? 'UN 3373 & P650 Konform' : 'UN 3373 & P650 Compliant'}</span>
                 </div>
                 <div className="bg-slate-900/80 border border-slate-700/80 backdrop-blur-md p-2.5 rounded-xl flex items-center space-x-2 shadow-lg">
                   <Zap className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span className="font-medium">Offline Basement Sync</span>
+                  <span className="font-medium">{isDe ? 'Offline Keller-Sync' : 'Offline Basement Sync'}</span>
                 </div>
               </div>
 
               {/* Demo Share Bar */}
               <div className="bg-slate-900/85 border border-slate-700/80 backdrop-blur-md p-3 rounded-xl flex items-center justify-between text-xs text-slate-300 shadow-xl">
-                <span className="truncate pr-2 font-medium">Testing environment initialized for Wiesbaden HQ. Copy demo logins:</span>
+                <span className="truncate pr-2 font-medium">{t('landing.demo_banner')}</span>
                 <button
                   onClick={handleCopyShare}
                   className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 px-3 py-1.5 rounded-lg flex items-center space-x-1 shrink-0 font-semibold shadow-sm transition-all"
@@ -275,24 +291,22 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                         ? 'bg-indigo-900 text-indigo-200 border-indigo-600'
                         : 'bg-red-950 text-red-300 border-red-800'
                     }`}>
-                      {isNightShift ? '24/7 Notfall-Nachtdienst Active' : 'MediGo Wiesbaden Fleet & Courier'}
+                      {isNightShift ? t('landing.night_fleet_badge') : t('landing.day_fleet_badge')}
                     </span>
                     {onToggleNightShift && (
                       <button
                         onClick={onToggleNightShift}
                         className="text-[10px] text-slate-300 hover:text-white underline font-semibold"
                       >
-                        {isNightShift ? 'Switch to Day Mode' : 'Switch to Night Mode'}
+                        {isNightShift ? t('landing.switch_to_day') : t('landing.switch_to_night')}
                       </button>
                     )}
                   </div>
                   <h4 className="font-bold text-white text-sm">
-                    {isNightShift ? '24/7 Emergency Night Shift Specimen Transport' : 'Dedicated UN 3373 Specimen Transport Vehicle (Wiesbaden HQ)'}
+                    {isNightShift ? t('landing.night_fleet_title') : t('landing.day_fleet_title')}
                   </h4>
                   <p className="text-slate-300 text-[11px] leading-relaxed">
-                    {isNightShift
-                      ? 'Active 20:00 - 06:00 Night Shift protocol for emergency STAT lab samples across Wiesbaden and Hessen clinics.'
-                      : 'Equipped with GPS live tracking telemetry, P650 specimen boxes, active 2-8°C / -20°C temperature regulation, and reflective courier uniforms.'}
+                    {isNightShift ? t('landing.night_fleet_desc') : t('landing.day_fleet_desc')}
                   </p>
                 </div>
               </div>
@@ -310,10 +324,10 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                 <div className={`border-b pb-4 ${isNightShift ? 'border-slate-800' : 'border-slate-200'}`}>
                   <h2 className={`text-lg font-bold flex items-center space-x-2 ${isNightShift ? 'text-white' : 'text-slate-900'}`}>
                     <Lock className="w-4 h-4 text-red-600" />
-                    <span>MediGo Portal Secure Login</span>
+                    <span>{t('login.title')}</span>
                   </h2>
                   <p className={`text-xs mt-0.5 ${isNightShift ? 'text-slate-400' : 'text-slate-600'}`}>
-                    Select your assigned organization role to access your dedicated dashboard.
+                    {t('login.subtitle')}
                   </p>
                 </div>
 
@@ -334,7 +348,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                   }`}
                 >
                   <Building2 className="w-3.5 h-3.5" />
-                  <span>Clinic</span>
+                  <span>{t('login.role_clinic')}</span>
                 </button>
 
                 <button
@@ -349,7 +363,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                   }`}
                 >
                   <Truck className="w-3.5 h-3.5" />
-                  <span>Courier</span>
+                  <span>{t('login.role_driver')}</span>
                 </button>
 
                 <button
@@ -365,7 +379,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                   }`}
                 >
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>CEO / Ops</span>
+                  <span>{t('login.role_dispatcher')}</span>
                 </button>
               </div>
 
@@ -375,7 +389,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                 {selectedRole === 'CLIENT_CLINIC' && (
                   <>
                     <div>
-                      <label className={`block font-semibold mb-1 ${isNightShift ? 'text-slate-300' : 'text-slate-700'}`}>Clinic Email Address</label>
+                      <label className={`block font-semibold mb-1 ${isNightShift ? 'text-slate-300' : 'text-slate-700'}`}>{t('login.clinic_email')}</label>
                       <input
                         type="email"
                         required
@@ -387,7 +401,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                       />
                     </div>
                     <div>
-                      <label className={`block font-semibold mb-1 ${isNightShift ? 'text-slate-300' : 'text-slate-700'}`}>Contract Number</label>
+                      <label className={`block font-semibold mb-1 ${isNightShift ? 'text-slate-300' : 'text-slate-700'}`}>{t('login.contract_number')}</label>
                       <input
                         type="text"
                         required
@@ -405,7 +419,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                 {selectedRole === 'DRIVER' && (
                   <>
                     <div>
-                      <label className="block text-slate-300 font-semibold mb-1">Driver Name / Vehicle</label>
+                      <label className="block text-slate-300 font-semibold mb-1">{t('login.driver_name')}</label>
                       <input
                         type="text"
                         readOnly
@@ -414,7 +428,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="block text-slate-300 font-semibold mb-1">Driver Security PIN</label>
+                      <label className="block text-slate-300 font-semibold mb-1">{t('login.driver_pin')}</label>
                       <input
                         type="password"
                         required
@@ -422,7 +436,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                         onChange={(e) => setPinInput(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-500 font-mono text-base tracking-widest"
                       />
-                      <span className="text-[10px] text-slate-500 mt-0.5 block">Demo Driver Security PIN: 1044</span>
+                      <span className="text-[10px] text-slate-500 mt-0.5 block">{isDe ? 'Demo Kurier Sicherheits-PIN: 1044' : 'Demo Driver Security PIN: 1044'}</span>
                     </div>
                   </>
                 )}
@@ -430,7 +444,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                 {selectedRole === 'DISPATCHER' && (
                   <>
                     <div>
-                      <label className="block text-slate-300 font-semibold mb-1">Management Dispatcher Email</label>
+                      <label className="block text-slate-300 font-semibold mb-1">{t('login.dispatcher_email')}</label>
                       <input
                         type="email"
                         required
@@ -440,7 +454,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="block text-slate-300 font-semibold mb-1">Password</label>
+                      <label className="block text-slate-300 font-semibold mb-1">{t('login.password')}</label>
                       <input
                         type="password"
                         required
@@ -456,7 +470,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                   type="submit"
                   className="w-full bg-red-600 hover:bg-red-500 text-white font-extrabold py-3 rounded-xl transition-all shadow-lg flex items-center justify-center space-x-2 text-sm"
                 >
-                  <span>Authenticate & Launch Portal</span>
+                  <span>{t('login.submit_btn')}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
 
@@ -465,7 +479,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
               {/* Direct 1-Click Login Shortcuts */}
               <div className="pt-3 border-t border-slate-800 space-y-2">
                 <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block text-center">
-                  Instant 1-Click Demo Logins
+                  {t('login.instant_shortcuts')}
                 </span>
                 
                 <div className="grid grid-cols-3 gap-2">
@@ -473,19 +487,19 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                     onClick={() => handleQuickLogin('CLIENT_CLINIC', 'CLIENT_PORTAL')}
                     className="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-blue-400 py-2 rounded-lg text-[11px] font-bold transition-all text-center truncate px-1"
                   >
-                    Clinic Login
+                    {t('login.btn_clinic_short')}
                   </button>
                   <button
                     onClick={() => handleQuickLogin('DRIVER', 'DRIVER_MOBILE')}
                     className="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-emerald-400 py-2 rounded-lg text-[11px] font-bold transition-all text-center truncate px-1"
                   >
-                    Driver Login
+                    {t('login.btn_driver_short')}
                   </button>
                   <button
                     onClick={() => handleQuickLogin('DISPATCHER', 'DISPATCH_DASHBOARD')}
                     className="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-red-400 py-2 rounded-lg text-[11px] font-bold transition-all text-center truncate px-1"
                   >
-                    CEO Login
+                    {t('login.btn_ceo_short')}
                   </button>
                 </div>
               </div>
@@ -505,7 +519,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
         <div className="max-w-7xl mx-auto space-y-8">
           <div className="text-center max-w-3xl mx-auto space-y-2">
             <div className="inline-flex items-center space-x-1.5 bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold">
-              <span>Wiesbaden Hub & National Logistics</span>
+              <span>{isDe ? 'Wiesbaden Hub & Deutschlandweite Logistik' : 'Wiesbaden Hub & National Logistics'}</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold">{t('landing.services_title')}</h2>
             <p className="text-xs sm:text-sm text-slate-500">{t('landing.services_sub')}</p>
@@ -558,9 +572,9 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
         <div className="max-w-7xl mx-auto space-y-8">
           
           <div className="text-center max-w-2xl mx-auto space-y-2">
-            <h2 className={`text-2xl font-bold ${isNightShift ? 'text-white' : 'text-slate-900'}`}>Three Isolated Role Dashboards</h2>
+            <h2 className={`text-2xl font-bold ${isNightShift ? 'text-white' : 'text-slate-900'}`}>{t('roles.section_title')}</h2>
             <p className={`text-xs ${isNightShift ? 'text-slate-400' : 'text-slate-600'}`}>
-              Strict security isolation ensures clients, drivers, and CEO management see only the data and functionality required for their operational scope.
+              {t('roles.section_desc')}
             </p>
           </div>
 
@@ -576,23 +590,23 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                 <Building2 className="w-6 h-6" />
               </div>
               <div>
-                <h3 className={`text-lg font-bold ${isNightShift ? 'text-white' : 'text-slate-900'}`}>1. Clinic Client Portal</h3>
+                <h3 className={`text-lg font-bold ${isNightShift ? 'text-white' : 'text-slate-900'}`}>{t('roles.clinic_title')}</h3>
                 <p className={`text-xs mt-1 ${isNightShift ? 'text-slate-400' : 'text-slate-600'}`}>
-                  Built for hospital ward staff & laboratory receptionists to request UN 3373 specimen pickups.
+                  {t('roles.clinic_desc')}
                 </p>
               </div>
               <ul className={`text-xs space-y-2 border-t pt-3 ${isNightShift ? 'border-slate-900 text-slate-300' : 'border-slate-200 text-slate-700'}`}>
                 <li className="flex items-center space-x-2">
                   <CheckCircle2 className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                  <span>Instant UN 3373 pickup booking & box count</span>
+                  <span>{t('roles.clinic_f1')}</span>
                 </li>
                 <li className="flex items-center space-x-2">
                   <CheckCircle2 className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                  <span>Live driver ETA map & arrival updates</span>
+                  <span>{t('roles.clinic_f2')}</span>
                 </li>
                 <li className="flex items-center space-x-2">
                   <CheckCircle2 className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                  <span>Automated monthly contract billing & invoices</span>
+                  <span>{t('roles.clinic_f3')}</span>
                 </li>
               </ul>
               <button
@@ -603,7 +617,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                     : 'bg-slate-50 hover:bg-slate-100 text-blue-600 border-blue-300 shadow-sm'
                 }`}
               >
-                <span>Launch Clinic Portal</span>
+                <span>{t('roles.clinic_btn')}</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -618,23 +632,23 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                 <Truck className="w-6 h-6" />
               </div>
               <div>
-                <h3 className={`text-lg font-bold ${isNightShift ? 'text-white' : 'text-slate-900'}`}>2. Driver Courier App</h3>
+                <h3 className={`text-lg font-bold ${isNightShift ? 'text-white' : 'text-slate-900'}`}>{t('roles.driver_title')}</h3>
                 <p className={`text-xs mt-1 ${isNightShift ? 'text-slate-400' : 'text-slate-600'}`}>
-                  Mobile PWA & native APK workflow for drivers navigating hospital basements and courier routes.
+                  {t('roles.driver_desc')}
                 </p>
               </div>
               <ul className={`text-xs space-y-2 border-t pt-3 ${isNightShift ? 'border-slate-900 text-slate-300' : 'border-slate-200 text-slate-700'}`}>
                 <li className="flex items-center space-x-2">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  <span>Sequential state machine (Pre-check to Delivery)</span>
+                  <span>{t('roles.driver_f1')}</span>
                 </li>
                 <li className="flex items-center space-x-2">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  <span>Offline queueing for basement signal blindspots</span>
+                  <span>{t('roles.driver_f2')}</span>
                 </li>
                 <li className="flex items-center space-x-2">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  <span>Job Marketplace for claiming available orders</span>
+                  <span>{t('roles.driver_f3')}</span>
                 </li>
               </ul>
               <button
@@ -645,7 +659,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                     : 'bg-slate-50 hover:bg-slate-100 text-emerald-600 border-emerald-300 shadow-sm'
                 }`}
               >
-                <span>Launch Driver App</span>
+                <span>{t('roles.driver_btn')}</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -660,23 +674,23 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                 <ShieldCheck className="w-6 h-6" />
               </div>
               <div>
-                <h3 className={`text-lg font-bold ${isNightShift ? 'text-white' : 'text-slate-900'}`}>3. CEO Dispatch Command</h3>
+                <h3 className={`text-lg font-bold ${isNightShift ? 'text-white' : 'text-slate-900'}`}>{t('roles.dispatch_title')}</h3>
                 <p className={`text-xs mt-1 ${isNightShift ? 'text-slate-400' : 'text-slate-600'}`}>
-                  Central fleet control dashboard with live thermal sensor breach alarms & legal compliance vault.
+                  {t('roles.dispatch_desc')}
                 </p>
               </div>
               <ul className={`text-xs space-y-2 border-t pt-3 ${isNightShift ? 'border-slate-900 text-slate-300' : 'border-slate-200 text-slate-700'}`}>
                 <li className="flex items-center space-x-2">
                   <CheckCircle2 className="w-3.5 h-3.5 text-red-500 shrink-0" />
-                  <span>Live GPS telemetry map & thermal breach spikes</span>
+                  <span>{t('roles.dispatch_f1')}</span>
                 </li>
                 <li className="flex items-center space-x-2">
                   <CheckCircle2 className="w-3.5 h-3.5 text-red-500 shrink-0" />
-                  <span>Chain of custody audit trails & signature PDFs</span>
+                  <span>{t('roles.dispatch_f2')}</span>
                 </li>
                 <li className="flex items-center space-x-2">
                   <CheckCircle2 className="w-3.5 h-3.5 text-red-500 shrink-0" />
-                  <span>GDPR Art. 28 AVV legal agreements & DSGVO data</span>
+                  <span>{t('roles.dispatch_f3')}</span>
                 </li>
               </ul>
               <button
@@ -687,7 +701,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                     : 'bg-slate-50 hover:bg-slate-100 text-red-600 border-red-300 shadow-sm'
                 }`}
               >
-                <span>Launch CEO Dashboard</span>
+                <span>{t('roles.dispatch_btn')}</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -702,8 +716,8 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
         isNightShift ? 'border-slate-900 bg-slate-950 text-slate-500' : 'border-slate-200 bg-slate-100 text-slate-600'
       }`}>
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>© 2026 MediGo Logistics GmbH • Landeshauptstadt Wiesbaden</span>
-          <span>EU DSGVO Data Privacy & Transfusionsgesetz (§ 15 TFG) Certified</span>
+          <span>{t('landing.footer_copy')}</span>
+          <span>{t('landing.footer_cert')}</span>
         </div>
       </footer>
 

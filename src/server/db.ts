@@ -168,7 +168,7 @@ class DatabaseService {
       try {
         const { data, error } = await supabase
           .from('users')
-          .select('id, email, name, role, phone, organization, contract_number, facility_type, facility_address, vehicle_reg_number, active, created_at')
+          .select('*')
           .order('created_at', { ascending: false });
 
         if (!error && data && data.length > 0) {
@@ -177,14 +177,14 @@ class DatabaseService {
             email: d.email,
             name: d.name,
             role: d.role,
-            phone: d.phone,
-            organization: d.organization,
-            contractNumber: d.contract_number,
-            facilityType: d.facility_type,
-            facilityAddress: d.facility_address,
-            vehicleRegNumber: d.vehicle_reg_number,
-            active: d.active,
-            createdAt: d.created_at,
+            phone: d.phone || '',
+            organization: d.organization || '',
+            contractNumber: d.contract_number || d.contractNumber || undefined,
+            facilityType: d.facility_type || d.facilityType || undefined,
+            facilityAddress: d.facility_address || d.facilityAddress || '',
+            vehicleRegNumber: d.vehicle_reg_number || d.assigned_vehicle_reg || d.vehicleRegNumber || undefined,
+            active: d.active !== undefined ? Boolean(d.active) : (d.is_active !== undefined ? Boolean(d.is_active) : true),
+            createdAt: d.created_at || new Date().toISOString(),
           }));
         }
       } catch (err) {
@@ -205,6 +205,8 @@ class DatabaseService {
 
   public async getUserByEmailWithPassword(email: string): Promise<StoredUser | null> {
     const normalized = email.toLowerCase().trim();
+    const localUser = this.state.users.find(u => u.email.toLowerCase() === normalized);
+
     const supabase = getSupabase();
     if (supabase) {
       try {
@@ -215,20 +217,25 @@ class DatabaseService {
           .single();
 
         if (!error && data) {
+          const rawHash = data.password || data.password_hash || data.passwordHash || '';
+          const activeStatus = data.active !== undefined ? Boolean(data.active) : (data.is_active !== undefined ? Boolean(data.is_active) : true);
+          const vehicleReg = data.vehicle_reg_number || data.assigned_vehicle_reg || data.vehicleRegNumber || '';
+          const finalPasswordHash = rawHash || localUser?.passwordHash || '';
+
           return {
             id: data.id,
             email: data.email,
             name: data.name,
             role: data.role,
-            phone: data.phone,
-            organization: data.organization,
-            contractNumber: data.contract_number,
-            facilityType: data.facility_type,
-            facilityAddress: data.facility_address,
-            vehicleRegNumber: data.vehicle_reg_number,
-            active: data.active,
-            createdAt: data.created_at,
-            passwordHash: data.password_hash,
+            phone: data.phone || '',
+            organization: data.organization || '',
+            contractNumber: data.contract_number || data.contractNumber || undefined,
+            facilityType: data.facility_type || data.facilityType || undefined,
+            facilityAddress: data.facility_address || data.facilityAddress || '',
+            vehicleRegNumber: vehicleReg || undefined,
+            active: activeStatus,
+            createdAt: data.created_at || new Date().toISOString(),
+            passwordHash: finalPasswordHash,
           };
         }
       } catch (err) {
@@ -236,8 +243,7 @@ class DatabaseService {
       }
     }
 
-    const user = this.state.users.find(u => u.email.toLowerCase() === normalized);
-    return user || null;
+    return localUser || null;
   }
 
   public async createUser(payload: CreateUserPayload): Promise<User> {
@@ -306,7 +312,10 @@ class DatabaseService {
           facility_type: newUser.facilityType,
           facility_address: newUser.facilityAddress,
           vehicle_reg_number: newUser.vehicleRegNumber,
+          assigned_vehicle_reg: newUser.vehicleRegNumber,
           active: newUser.active,
+          is_active: newUser.active,
+          password: newUser.passwordHash,
           password_hash: newUser.passwordHash,
           created_at: newUser.createdAt,
         });
@@ -355,9 +364,12 @@ class DatabaseService {
           facility_type: user.facilityType,
           facility_address: user.facilityAddress,
           vehicle_reg_number: user.vehicleRegNumber,
+          assigned_vehicle_reg: user.vehicleRegNumber,
           active: user.active,
+          is_active: user.active,
         };
         if (updates.password) {
+          sbUpdates.password = user.passwordHash;
           sbUpdates.password_hash = user.passwordHash;
         }
         await supabase.from('users').update(sbUpdates).eq('id', id);

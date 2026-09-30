@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Role } from '../../types';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import {
   Users,
   UserPlus,
@@ -29,6 +30,8 @@ interface UserManagementModalProps {
 }
 
 export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen, onClose }) => {
+  const { language } = useLanguage();
+  const isDe = language === 'de';
   const { token, currentUser, dbStatus, refreshDbStatus } = useAuth();
 
   const [activeTab, setActiveTab] = useState<'LIST' | 'CREATE' | 'DATABASE'>('LIST');
@@ -288,13 +291,17 @@ Login URL: ${window.location.origin}`;
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h3 className="font-bold text-base text-white">Personnel & Facility Administration</h3>
+                <h3 className="font-bold text-base text-white">
+                  {isDe ? 'Personal- & Mandantenverwaltung' : 'Personnel & Facility Administration'}
+                </h3>
                 <span className="bg-amber-950 text-amber-400 border border-amber-800 text-[10px] font-mono px-2 py-0.5 rounded font-bold">
-                  ADMIN ONLY
+                  {isDe ? 'NUR ADMIN' : 'ADMIN ONLY'}
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                User Verification, Contract Provisioning & Supabase Persistence Control
+                {isDe
+                  ? 'Benutzer-Verifizierung, Rahmenverträge & Datenbank-Synchronisation'
+                  : 'User Verification, Contract Provisioning & Supabase Persistence Control'}
               </p>
             </div>
           </div>
@@ -317,7 +324,7 @@ Login URL: ${window.location.origin}`;
             }`}
           >
             <Users className="w-4 h-4" />
-            <span>User Directory ({users.length})</span>
+            <span>{isDe ? 'Benutzerverzeichnis' : 'User Directory'} ({users.length})</span>
           </button>
 
           <button
@@ -329,7 +336,7 @@ Login URL: ${window.location.origin}`;
             }`}
           >
             <UserPlus className="w-4 h-4" />
-            <span>Provision User or Facility</span>
+            <span>{isDe ? 'Konto / Klinik anlegen' : 'Provision User or Facility'}</span>
           </button>
 
           <button
@@ -342,7 +349,7 @@ Login URL: ${window.location.origin}`;
           >
             <Database className="w-4 h-4" />
             <span>
-              Supabase Database ({dbStatus?.tablesCreated ? 'Active' : dbStatus?.supabaseConfigured ? 'Tables Pending' : 'Standby'})
+              {isDe ? 'Datenbank' : 'Supabase Database'} ({dbStatus?.tablesCreated ? (isDe ? 'Aktiv' : 'Active') : dbStatus?.supabaseConfigured ? (isDe ? 'Tabellen ausstehend' : 'Tables Pending') : (isDe ? 'Bereit' : 'Standby')})
             </span>
           </button>
         </div>

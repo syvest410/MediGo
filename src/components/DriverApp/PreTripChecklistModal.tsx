@@ -12,6 +12,7 @@ import {
   FileCheck
 } from 'lucide-react';
 import { generateSampleSignatureDataUrl } from './SignaturePadModal';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface PreTripChecklistModalProps {
   order: Order;
@@ -26,6 +27,9 @@ export const PreTripChecklistModal: React.FC<PreTripChecklistModalProps> = ({
   onClose,
   onSubmit,
 }) => {
+  const { language } = useLanguage();
+  const isDe = language === 'de';
+
   const [p650Outer, setP650Outer] = useState(true);
   const [primarySecondaryLeakProof, setPrimarySecondaryLeakProof] = useState(true);
   const [absorbentMaterial, setAbsorbentMaterial] = useState(true);
@@ -79,40 +83,28 @@ export const PreTripChecklistModal: React.FC<PreTripChecklistModalProps> = ({
     ctx.moveTo(25 * dpr, canvas.height - 25 * dpr);
     ctx.lineTo(canvas.width - 25 * dpr, canvas.height - 25 * dpr);
     ctx.stroke();
-
-    ctx.lineWidth = 3.2 * dpr;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#0284c7'; // Courier blue ink
   };
 
   const getCanvasCoords = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
-    const width = rect.width > 0 ? rect.width : (canvas.parentElement?.clientWidth || 500);
-    const height = rect.height > 0 ? rect.height : 140;
+    const dpr = window.devicePixelRatio || 2;
 
-    let clientX = rect.left;
-    let clientY = rect.top;
+    let clientX = 0;
+    let clientY = 0;
 
-    if ('touches' in e && e.touches && e.touches.length > 0) {
+    if ('touches' in e && e.touches.length > 0) {
       clientX = e.touches[0].clientX;
       clientY = e.touches[0].clientY;
-    } else if ('changedTouches' in e && (e as React.TouchEvent).changedTouches && (e as React.TouchEvent).changedTouches.length > 0) {
-      clientX = (e as React.TouchEvent).changedTouches[0].clientX;
-      clientY = (e as React.TouchEvent).changedTouches[0].clientY;
     } else if ('clientX' in e) {
       clientX = (e as React.MouseEvent).clientX;
       clientY = (e as React.MouseEvent).clientY;
     }
 
-    const scaleX = canvas.width / width;
-    const scaleY = canvas.height / height;
-
     return {
-      x: (clientX - rect.left) * scaleX,
-      y: (clientY - rect.top) * scaleY
+      x: (clientX - rect.left) * (canvas.width / rect.width),
+      y: (clientY - rect.top) * (canvas.height / rect.height)
     };
   };
 
@@ -196,7 +188,9 @@ export const PreTripChecklistModal: React.FC<PreTripChecklistModalProps> = ({
     setErrorMsg('');
 
     if (!p650Outer || !primarySecondaryLeakProof || !absorbentMaterial || !tempBoxCalibrated) {
-      setErrorMsg('UN 3373 ADR Compliance Error: All 4 packaging and temperature checks must be passed before pickup.');
+      setErrorMsg(isDe 
+        ? 'UN 3373 ADR Fehler: Alle 4 Verpackungs- und Temperaturprüfungen müssen bestanden sein.'
+        : 'UN 3373 ADR Compliance Error: All 4 packaging and temperature checks must be passed before pickup.');
       return;
     }
 
@@ -233,12 +227,12 @@ export const PreTripChecklistModal: React.FC<PreTripChecklistModalProps> = ({
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h3 className="font-bold text-base text-white">Pre-Trip P650 Inspection</h3>
+                <h3 className="font-bold text-base text-white">{isDe ? 'Vor-Fahrt P650 Sicherheitsprüfung' : 'Pre-Trip P650 Inspection'}</h3>
                 <span className="bg-blue-950 text-cyan-300 border border-blue-800 text-[10px] font-mono px-1.5 py-0.5 rounded font-bold">
-                  STAGE 2 / 5
+                  {isDe ? 'STUFE 2 / 5' : 'STAGE 2 / 5'}
                 </span>
               </div>
-              <p className="text-xs text-slate-400">ADR Biological Substance Category B Transport</p>
+              <p className="text-xs text-slate-400">{isDe ? 'ADR Gefahrgut-Beförderung Biologische Stoffe Kat. B' : 'ADR Biological Substance Category B Transport'}</p>
             </div>
           </div>
           <button
@@ -261,8 +255,8 @@ export const PreTripChecklistModal: React.FC<PreTripChecklistModalProps> = ({
           {/* Transport Specifications Info */}
           <div className="bg-slate-950 border border-slate-800 p-3 rounded-xl space-y-1">
             <div className="flex items-center justify-between font-bold text-slate-200">
-              <span>Required Range: {tempRange.label}</span>
-              <span className="text-cyan-400 font-mono">{tempRange.min}°C to {tempRange.max}°C</span>
+              <span>{isDe ? 'Soll-Temperatur:' : 'Required Range:'} {tempRange.label}</span>
+              <span className="text-cyan-400 font-mono">{tempRange.min}°C bis {tempRange.max}°C</span>
             </div>
             <p className="text-slate-400 text-[11px]">{tempRange.desc}</p>
           </div>
@@ -277,8 +271,8 @@ export const PreTripChecklistModal: React.FC<PreTripChecklistModalProps> = ({
                 className="mt-0.5 w-4 h-4 rounded border-slate-700 text-emerald-500 focus:ring-emerald-500"
               />
               <div>
-                <span className="font-bold text-slate-200 block">1. Outer Packaging Intact (P650 Rigid Outer)</span>
-                <span className="text-slate-400 text-[11px]">Free from cracks, impacts, chemical degradation, or moisture.</span>
+                <span className="font-bold text-slate-200 block">{isDe ? '1. Außenverpackung unbeschädigt (P650 starre Box)' : '1. Outer Packaging Intact (P650 Rigid Outer)'}</span>
+                <span className="text-slate-400 text-[11px]">{isDe ? 'Frei von Rissen, Schlagschäden, chemischen Rückständen oder Nässe.' : 'Free from cracks, impacts, chemical degradation, or moisture.'}</span>
               </div>
             </label>
 
@@ -290,8 +284,8 @@ export const PreTripChecklistModal: React.FC<PreTripChecklistModalProps> = ({
                 className="mt-0.5 w-4 h-4 rounded border-slate-700 text-emerald-500 focus:ring-emerald-500"
               />
               <div>
-                <span className="font-bold text-slate-200 block">2. Primary & Secondary Vessels Leak-Proof</span>
-                <span className="text-slate-400 text-[11px]">Capable of withstanding 95 kPa internal pressure differential without leak.</span>
+                <span className="font-bold text-slate-200 block">{isDe ? '2. Primär- und Sekundärgefäße flüssigkeitsdicht' : '2. Primary & Secondary Vessels Leak-Proof'}</span>
+                <span className="text-slate-400 text-[11px]">{isDe ? 'Geprüft nach 95 kPa Innendruckdifferenz ohne Leckage.' : 'Capable of withstanding 95 kPa internal pressure differential without leak.'}</span>
               </div>
             </label>
 
@@ -303,8 +297,8 @@ export const PreTripChecklistModal: React.FC<PreTripChecklistModalProps> = ({
                 className="mt-0.5 w-4 h-4 rounded border-slate-700 text-emerald-500 focus:ring-emerald-500"
               />
               <div>
-                <span className="font-bold text-slate-200 block">3. Absorbent Material Present</span>
-                <span className="text-slate-400 text-[11px]">Sufficient capacity to absorb entire liquid specimen volume.</span>
+                <span className="font-bold text-slate-200 block">{isDe ? '3. Saugfähiges Aufsaugmaterial vorhanden' : '3. Absorbent Material Present'}</span>
+                <span className="text-slate-400 text-[11px]">{isDe ? 'Ausreichende Kapazität zur Aufnahme des gesamten Flüssigkeitsvolumens.' : 'Sufficient capacity to absorb entire liquid specimen volume.'}</span>
               </div>
             </label>
 
@@ -316,8 +310,8 @@ export const PreTripChecklistModal: React.FC<PreTripChecklistModalProps> = ({
                 className="mt-0.5 w-4 h-4 rounded border-slate-700 text-emerald-500 focus:ring-emerald-500"
               />
               <div>
-                <span className="font-bold text-slate-200 block">4. Temperature Box & Sensor Active</span>
-                <span className="text-slate-400 text-[11px]">Active IoT data-logger calibrated within 24h calibration validity window.</span>
+                <span className="font-bold text-slate-200 block">{isDe ? '4. Kühlbox & Datenlogger aktiv' : '4. Temperature Box & Sensor Active'}</span>
+                <span className="text-slate-400 text-[11px]">{isDe ? 'Aktiver IoT-Datenlogger innerhalb des 24h-Kalibrierfensters.' : 'Active IoT data-logger calibrated within 24h calibration validity window.'}</span>
               </div>
             </label>
           </div>
@@ -327,7 +321,7 @@ export const PreTripChecklistModal: React.FC<PreTripChecklistModalProps> = ({
             <label className="flex items-center justify-between text-slate-300 font-bold">
               <span className="flex items-center space-x-1.5">
                 <Thermometer className="w-4 h-4 text-cyan-400" />
-                <span>Initial Calibrated Box Temperature:</span>
+                <span>{isDe ? 'Ausgangstemperatur Transportbehälter:' : 'Initial Calibrated Box Temperature:'}</span>
               </span>
               <span className="text-cyan-400 font-mono">{initialTemp} °C</span>
             </label>
@@ -345,7 +339,7 @@ export const PreTripChecklistModal: React.FC<PreTripChecklistModalProps> = ({
             <div className="flex items-center justify-between text-slate-300">
               <div className="flex items-center space-x-1.5">
                 <PenTool className="w-3.5 h-3.5 text-cyan-400" />
-                <span className="font-bold">Driver Certification Signature (Hans Schmidt) *</span>
+                <span className="font-bold">{isDe ? 'Kurier-Unterschrift zur Abfahrtskontrolle *' : 'Driver Certification Signature (Hans Schmidt) *'}</span>
               </div>
 
               <div className="flex items-center space-x-2">
@@ -355,7 +349,7 @@ export const PreTripChecklistModal: React.FC<PreTripChecklistModalProps> = ({
                   className="text-cyan-400 hover:text-cyan-300 text-[11px] font-semibold flex items-center space-x-1"
                 >
                   <Sparkles className="w-3 h-3" />
-                  <span>Sample Signature</span>
+                  <span>{isDe ? 'Muster-Signatur' : 'Sample Signature'}</span>
                 </button>
                 <button
                   type="button"
@@ -363,7 +357,7 @@ export const PreTripChecklistModal: React.FC<PreTripChecklistModalProps> = ({
                   className="text-slate-400 hover:text-white text-[11px] font-semibold flex items-center space-x-1"
                 >
                   <RotateCcw className="w-3 h-3" />
-                  <span>Clear</span>
+                  <span>{isDe ? 'Löschen' : 'Clear'}</span>
                 </button>
               </div>
             </div>
@@ -384,17 +378,17 @@ export const PreTripChecklistModal: React.FC<PreTripChecklistModalProps> = ({
 
               {!signatureData && strokeCount === 0 && (
                 <div className="absolute inset-0 pointer-events-none flex items-center justify-center text-slate-400 font-medium text-xs">
-                  <span>Sign with touch or mouse to certify inspection</span>
+                  <span>{isDe ? 'Mit Touch oder Maus unterschreiben' : 'Sign with touch or mouse to certify inspection'}</span>
                 </div>
               )}
             </div>
 
             <div className="flex items-center justify-between text-[10px] text-slate-500 px-1">
-              <span>Driver signature embedded directly into PDF audit report</span>
+              <span>{isDe ? 'Unterschrift wird im PDF-Kettennachweis rechtssicher archiviert' : 'Driver signature embedded directly into PDF audit report'}</span>
               {signatureData && (
                 <span className="text-cyan-400 font-bold font-mono flex items-center space-x-1">
                   <FileCheck className="w-3 h-3" />
-                  <span>Pre-Trip Signature Captured</span>
+                  <span>{isDe ? 'Signatur erfasst' : 'Pre-Trip Signature Captured'}</span>
                 </span>
               )}
             </div>
@@ -407,7 +401,7 @@ export const PreTripChecklistModal: React.FC<PreTripChecklistModalProps> = ({
               onClick={onClose}
               className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 font-semibold transition-all text-xs"
             >
-              Cancel
+              {isDe ? 'Abbrechen' : 'Cancel'}
             </button>
             <button
               type="submit"
@@ -415,7 +409,7 @@ export const PreTripChecklistModal: React.FC<PreTripChecklistModalProps> = ({
               className="px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold flex items-center space-x-2 shadow-lg shadow-cyan-950 transition-all text-xs active:scale-95"
             >
               <CheckCircle className="w-4 h-4" />
-              <span>Approve & Proceed to Pickup</span>
+              <span>{isDe ? 'Prüfung bestätigen & Weiter zur Abholung' : 'Approve & Proceed to Pickup'}</span>
             </button>
           </div>
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import { AuditLog, Order } from '../../types';
-import { ShieldCheck, MapPin, Smartphone, User, CheckCircle, Database } from 'lucide-react';
+import { ShieldCheck, MapPin, User, CheckCircle, Database } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface AuditTrailViewerProps {
   orders: Order[];
@@ -8,6 +9,9 @@ interface AuditTrailViewerProps {
 }
 
 export const AuditTrailViewer: React.FC<AuditTrailViewerProps> = ({ orders, selectedOrder }) => {
+  const { language } = useLanguage();
+  const isDe = language === 'de';
+
   // Aggregate all audit logs across orders or for selected order
   let logs: AuditLog[] = [];
 
@@ -32,13 +36,17 @@ export const AuditTrailViewer: React.FC<AuditTrailViewerProps> = ({ orders, sele
             <ShieldCheck className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-white">Immutable Audit Trail Ledger</h3>
-            <p className="text-xs text-slate-400">German Legal & Laboratory Chain-of-Custody Compliance Verification</p>
+            <h3 className="text-base font-bold text-white">
+              {isDe ? 'Unveränderliches Revisions- & Audit-Protokoll' : 'Immutable Audit Trail Ledger'}
+            </h3>
+            <p className="text-xs text-slate-400">
+              {isDe ? 'Rechtssichere Chain-of-Custody-Dokumentation für Labor & Behörden (GoBD & DSGVO)' : 'German Legal & Laboratory Chain-of-Custody Compliance Verification'}
+            </p>
           </div>
         </div>
 
         <span className="bg-emerald-950 text-emerald-300 border border-emerald-700 px-2.5 py-1 rounded-md text-xs font-semibold">
-          {logs.length} Immutable Event(s)
+          {logs.length} {isDe ? 'Ereignis(se)' : 'Immutable Event(s)'}
         </span>
       </div>
 
@@ -47,27 +55,27 @@ export const AuditTrailViewer: React.FC<AuditTrailViewerProps> = ({ orders, sele
         <table className="w-full text-left text-xs font-medium">
           <thead className="bg-slate-950 text-slate-400 font-semibold border-b border-slate-800 uppercase tracking-wider text-[11px]">
             <tr>
-              <th className="p-3">Timestamp (DE)</th>
-              <th className="p-3">Order ID</th>
-              <th className="p-3">State Transition</th>
-              <th className="p-3">Action Description</th>
-              <th className="p-3">User / Role</th>
-              <th className="p-3">GPS Location</th>
-              <th className="p-3">Sync Status</th>
+              <th className="p-3">{isDe ? 'Zeitstempel' : 'Timestamp (DE)'}</th>
+              <th className="p-3">{isDe ? 'Auftrags-ID' : 'Order ID'}</th>
+              <th className="p-3">{isDe ? 'Status-Übergang' : 'State Transition'}</th>
+              <th className="p-3">{isDe ? 'Aktionsbeschreibung' : 'Action Description'}</th>
+              <th className="p-3">{isDe ? 'Benutzer / Rolle' : 'User / Role'}</th>
+              <th className="p-3">{isDe ? 'GPS-Standort' : 'GPS Location'}</th>
+              <th className="p-3">{isDe ? 'Sync-Status' : 'Sync Status'}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60 font-mono">
             {logs.length === 0 ? (
               <tr>
                 <td colSpan={7} className="p-6 text-center text-slate-500 italic">
-                  No audit logs recorded yet.
+                  {isDe ? 'Noch keine Revisionsprotokolle vorhanden.' : 'No audit logs recorded yet.'}
                 </td>
               </tr>
             ) : (
               logs.map((log) => (
                 <tr key={log.id} className="hover:bg-slate-800/50 transition-colors">
                   <td className="p-3 text-slate-300">
-                    {new Date(log.createdAt).toLocaleString('de-DE')}
+                    {new Date(log.createdAt).toLocaleString(isDe ? 'de-DE' : 'en-US')}
                   </td>
 
                   <td className="p-3 font-bold text-white">
@@ -102,12 +110,12 @@ export const AuditTrailViewer: React.FC<AuditTrailViewerProps> = ({ orders, sele
                     {log.offlineSynced ? (
                       <span className="text-emerald-400 text-[10px] font-semibold flex items-center space-x-1">
                         <CheckCircle className="w-3.5 h-3.5" />
-                        <span>Synced</span>
+                        <span>{isDe ? 'Synchronisiert' : 'Synced'}</span>
                       </span>
                     ) : (
                       <span className="text-amber-400 text-[10px] font-semibold flex items-center space-x-1">
                         <Database className="w-3.5 h-3.5" />
-                        <span>Local Queue</span>
+                        <span>{isDe ? 'Lokale Warteschlange' : 'Local Queue'}</span>
                       </span>
                     )}
                   </td>

@@ -1,26 +1,30 @@
 import React, { useState } from 'react';
 import { 
-  ShieldCheck, 
   Lock, 
   FileText, 
   CheckCircle2, 
-  AlertTriangle, 
   Download, 
-  Building2, 
-  Eye, 
   UserX, 
   Scale, 
   ShieldAlert,
   HardDrive,
   FileCheck
 } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 export const LegalComplianceCenter: React.FC = () => {
+  const { language } = useLanguage();
+  const isDe = language === 'de';
+
   const [activeSection, setActiveSection] = useState<'GDPR' | 'BIOLOGICS_LAW' | 'AVV_CONTRACT' | 'SECURITY'>('GDPR');
   const [downloadMsg, setDownloadMsg] = useState('');
 
   const handleDownloadAVV = () => {
-    setDownloadMsg('Generated GDPR Art. 28 Data Processing Agreement (AVV) PDF template!');
+    setDownloadMsg(
+      isDe
+        ? 'DSGVO Art. 28 Auftragsverarbeitungsvertrag (AVV) PDF-Muster generiert!'
+        : 'Generated GDPR Art. 28 Data Processing Agreement (AVV) PDF template!'
+    );
     setTimeout(() => setDownloadMsg(''), 3000);
   };
 
@@ -35,13 +39,17 @@ export const LegalComplianceCenter: React.FC = () => {
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <h2 className="text-lg font-bold text-white">MediGo Hessen — Legal, Regulatory & Data Protection Center</h2>
+              <h2 className="text-lg font-bold text-white">
+                {isDe ? 'MediGo Hessen — Recht, Regulatorik & Datenschutz-Zentrum' : 'MediGo Hessen — Legal, Regulatory & Data Protection Center'}
+              </h2>
               <span className="bg-red-950 text-red-300 border border-red-700 text-xs px-2.5 py-0.5 rounded font-mono font-semibold">
-                EU DSGVO & German Law Compliant
+                {isDe ? 'EU-DSGVO & Deutsches Recht Konform' : 'EU DSGVO & German Law Compliant'}
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
-              Strict legal compliance framework protecting MediGo Hessen logistics operations from legal liability & fines.
+              {isDe
+                ? 'Strikter gesetzlicher Compliance-Rahmen zum Schutz der MediGo Hessen Logistik vor Haftung & Bußgeldern.'
+                : 'Strict legal compliance framework protecting MediGo Hessen logistics operations from legal liability & fines.'}
             </p>
           </div>
         </div>
@@ -51,7 +59,7 @@ export const LegalComplianceCenter: React.FC = () => {
           className="bg-red-600 hover:bg-red-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-2 shadow-lg transition-all shrink-0"
         >
           <Download className="w-4 h-4" />
-          <span>Download GDPR AVV Contract</span>
+          <span>{isDe ? 'DSGVO AVV-Vertrag Herunterladen' : 'Download GDPR AVV Contract'}</span>
         </button>
       </div>
 
@@ -71,7 +79,7 @@ export const LegalComplianceCenter: React.FC = () => {
           }`}
         >
           <UserX className="w-4 h-4" />
-          <span>GDPR / DSGVO Data Privacy</span>
+          <span>{isDe ? 'DSGVO Datenschutz' : 'GDPR / DSGVO Data Privacy'}</span>
         </button>
 
         <button
@@ -81,7 +89,7 @@ export const LegalComplianceCenter: React.FC = () => {
           }`}
         >
           <ShieldAlert className="w-4 h-4" />
-          <span>UN 3373 & Transfusionsgesetz</span>
+          <span>{isDe ? 'UN 3373 & Transfusionsgesetz' : 'UN 3373 & Transfusionsgesetz'}</span>
         </button>
 
         <button
@@ -91,7 +99,7 @@ export const LegalComplianceCenter: React.FC = () => {
           }`}
         >
           <Lock className="w-4 h-4" />
-          <span>Encryption & Data Auditing</span>
+          <span>{isDe ? 'Verschlüsselung & Revisionssicherheit' : 'Encryption & Data Auditing'}</span>
         </button>
 
         <button
@@ -101,7 +109,7 @@ export const LegalComplianceCenter: React.FC = () => {
           }`}
         >
           <FileCheck className="w-4 h-4" />
-          <span>Clinic Client Legal AVV Agreement</span>
+          <span>{isDe ? 'Klinik-AVV Mustervertrag' : 'Clinic Client Legal AVV Agreement'}</span>
         </button>
       </div>
 
@@ -113,52 +121,58 @@ export const LegalComplianceCenter: React.FC = () => {
             <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-2">
               <div className="flex items-center space-x-2 text-emerald-400 font-bold text-sm">
                 <UserX className="w-4 h-4" />
-                <span>1. Patient Pseudonymization</span>
+                <span>{isDe ? '1. Patienten-Pseudonymisierung' : '1. Patient Pseudonymization'}</span>
               </div>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Under Art. 4 No. 5 DSGVO, raw patient names, medical diagnoses, or national IDs are <strong>never</strong> transmitted or stored in the app. Only barcode tracking numbers (e.g. <code className="text-emerald-300">SPEC-CHARITE-881</code>) are processed.
+                {isDe
+                  ? 'Gemäß Art. 4 Nr. 5 DSGVO werden Klartext-Patientennamen, Diagnosen oder Krankenversichertennummern niemals verarbeitet. Ausschließlich anonymisierte Barcode-Kennungen (z.B. SPEC-CHARITE-881) werden erfasst.'
+                  : 'Under Art. 4 No. 5 DSGVO, raw patient names, medical diagnoses, or national IDs are never transmitted or stored in the app. Only barcode tracking numbers (e.g. SPEC-CHARITE-881) are processed.'}
               </p>
             </div>
 
             <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-2">
               <div className="flex items-center space-x-2 text-emerald-400 font-bold text-sm">
                 <HardDrive className="w-4 h-4" />
-                <span>2. Local Storage & Offline Protection</span>
+                <span>{isDe ? '2. Lokale Speicherung & Offline-Schutz' : '2. Local Storage & Offline Protection'}</span>
               </div>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Driver offline queue logs stored in browser LocalStorage/IndexedDB use salt-hashed session keys and automated purging upon successful synchronization to central servers.
+                {isDe
+                  ? 'Offline-Warteschlangen im Kurier-Browser nutzen gesalzene Hash-Schlüssel und automatische Bereinigung unmittelbar nach erfolgreicher Server-Synchronisation.'
+                  : 'Driver offline queue logs stored in browser LocalStorage/IndexedDB use salt-hashed session keys and automated purging upon successful synchronization to central servers.'}
               </p>
             </div>
 
             <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-2">
               <div className="flex items-center space-x-2 text-emerald-400 font-bold text-sm">
                 <FileText className="w-4 h-4" />
-                <span>3. Right to Eradication (Art. 17)</span>
+                <span>{isDe ? '3. Recht auf Löschung (Art. 17 DSGVO)' : '3. Right to Eradication (Art. 17)'}</span>
               </div>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Clinic clients can request telemetry log purges after statutory medical archiving periods (10 years for blood components under § 11 TFG) expire.
+                {isDe
+                  ? 'Klinikkunden können Datenlöschungen nach Ablauf der gesetzlichen medizinischen Aufbewahrungsfristen (10 Jahre bei Blutprodukten gem. § 11 TFG) anfordern.'
+                  : 'Clinic clients can request telemetry log purges after statutory medical archiving periods (10 years for blood components under § 11 TFG) expire.'}
               </p>
             </div>
 
           </div>
 
           <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-2 text-xs">
-            <h4 className="font-bold text-white text-sm">DSGVO Privacy Compliance Certificate</h4>
+            <h4 className="font-bold text-white text-sm">{isDe ? 'DSGVO Datenschutz-Zertifikat' : 'DSGVO Privacy Compliance Certificate'}</h4>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 font-mono text-[11px] text-slate-300">
               <div className="bg-slate-900 p-2.5 rounded border border-slate-800">
-                <span className="text-slate-500 block text-[10px]">Data Controller</span>
+                <span className="text-slate-500 block text-[10px]">{isDe ? 'Verantwortlicher' : 'Data Controller'}</span>
                 <span className="text-white font-bold">MediGo Logistics Hessen GmbH</span>
               </div>
               <div className="bg-slate-900 p-2.5 rounded border border-slate-800">
-                <span className="text-slate-500 block text-[10px]">Data Protection Officer</span>
+                <span className="text-slate-500 block text-[10px]">{isDe ? 'Datenschutzbeauftragter' : 'Data Protection Officer'}</span>
                 <span className="text-red-400 font-bold">dpo@medigo-hessen.de</span>
               </div>
               <div className="bg-slate-900 p-2.5 rounded border border-slate-800">
-                <span className="text-slate-500 block text-[10px]">Server Storage Center</span>
+                <span className="text-slate-500 block text-[10px]">{isDe ? 'Rechenzentrum' : 'Server Storage Center'}</span>
                 <span className="text-white font-bold">Frankfurt am Main, Hessen (EU)</span>
               </div>
               <div className="bg-slate-900 p-2.5 rounded border border-slate-800">
-                <span className="text-slate-500 block text-[10px]">Encryption Standard</span>
+                <span className="text-slate-500 block text-[10px]">{isDe ? 'Verschlüsselungsstandard' : 'Encryption Standard'}</span>
                 <span className="text-red-400 font-bold">AES-256 / TLS 1.3</span>
               </div>
             </div>
@@ -172,37 +186,43 @@ export const LegalComplianceCenter: React.FC = () => {
           <div className="bg-slate-950 border border-slate-800 p-5 rounded-xl space-y-3">
             <h4 className="font-bold text-white text-sm flex items-center space-x-2">
               <ShieldAlert className="w-4 h-4 text-amber-400" />
-              <span>Medical Logistics Legal Statutes & Guidelines Handled</span>
+              <span>{isDe ? 'Rechtsvorschriften & Leitlinien für die medizinische Probenlogistik' : 'Medical Logistics Legal Statutes & Guidelines Handled'}</span>
             </h4>
 
             <div className="space-y-3">
               <div className="bg-slate-900 p-3 rounded-lg border border-slate-800 space-y-1">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-white">1. ADR Packaging Instruction P650 (UN 3373)</span>
-                  <span className="text-emerald-400 font-mono font-bold">Compliant</span>
+                  <span className="font-bold text-white">{isDe ? '1. ADR Verpackungsvorschrift P650 (UN 3373)' : '1. ADR Packaging Instruction P650 (UN 3373)'}</span>
+                  <span className="text-emerald-400 font-mono font-bold">{isDe ? 'Erfüllt' : 'Compliant'}</span>
                 </div>
                 <p className="text-slate-400">
-                  Biological Substance Category B requires triple packaging (primary receptacle, secondary leakproof packaging, rigid outer box). The app enforces box count verification and P650 checklist confirmation before pickup.
+                  {isDe
+                    ? 'Biologische Stoffe der Kategorie B erfordern Dreifachverpackung (Primärgefäß, auslaufsichere Sekundärverpackung, starre Außenverpackung). Die App erzwingt die P650-Vorabprüfung vor der Probenübernahme.'
+                    : 'Biological Substance Category B requires triple packaging (primary receptacle, secondary leakproof packaging, rigid outer box). The app enforces box count verification and P650 checklist confirmation before pickup.'}
                 </p>
               </div>
 
               <div className="bg-slate-900 p-3 rounded-lg border border-slate-800 space-y-1">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-white">2. German Transfusionsgesetz (§ 15 TFG)</span>
-                  <span className="text-emerald-400 font-mono font-bold">Compliant</span>
+                  <span className="font-bold text-white">{isDe ? '2. Deutsches Transfusionsgesetz (§ 15 TFG)' : '2. German Transfusionsgesetz (§ 15 TFG)'}</span>
+                  <span className="text-emerald-400 font-mono font-bold">{isDe ? 'Erfüllt' : 'Compliant'}</span>
                 </div>
                 <p className="text-slate-400">
-                  Mandates continuous temperature recording and immutable chain of custody for blood components between 2°C and 8°C. Proof of thermal integrity is auto-embedded into signed PDF certificates.
+                  {isDe
+                    ? 'Schreibt lückenlose Temperaturaufzeichnung und unveränderliche Chain of Custody für Blutkomponenten zwischen 2°C und 8°C vor. Integritätsnachweise werden automatisch in signierte PDF-Zertifikate eingebettet.'
+                    : 'Mandates continuous temperature recording and immutable chain of custody for blood components between 2°C and 8°C. Proof of thermal integrity is auto-embedded into signed PDF certificates.'}
                 </p>
               </div>
 
               <div className="bg-slate-900 p-3 rounded-lg border border-slate-800 space-y-1">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-white">3. BioStoffV (Biostoffverordnung - Ordinance on Biological Agents)</span>
-                  <span className="text-emerald-400 font-mono font-bold">Compliant</span>
+                  <span className="font-bold text-white">{isDe ? '3. Biostoffverordnung (BioStoffV)' : '3. BioStoffV (Biostoffverordnung - Ordinance on Biological Agents)'}</span>
+                  <span className="text-emerald-400 font-mono font-bold">{isDe ? 'Erfüllt' : 'Compliant'}</span>
                 </div>
                 <p className="text-slate-400">
-                  Regulates driver safety precautions during transport of Risk Group 2/3 diagnostic samples. Includes spill kit verification and emergency laboratory protocol logs.
+                  {isDe
+                    ? 'Regelt Arbeitsschutzmaßnahmen beim Transport von Proben der Risikogruppe 2/3. Umfasst Notfall-Spillkit-Kontrolle und Havarie-Protokolle.'
+                    : 'Regulates driver safety precautions during transport of Risk Group 2/3 diagnostic samples. Includes spill kit verification and emergency laboratory protocol logs.'}
                 </p>
               </div>
             </div>
@@ -215,21 +235,25 @@ export const LegalComplianceCenter: React.FC = () => {
         <div className="bg-slate-950 border border-slate-800 p-5 rounded-xl space-y-4 text-xs">
           <h4 className="font-bold text-white text-sm flex items-center space-x-2">
             <Lock className="w-4 h-4 text-emerald-400" />
-            <span>Cryptographic Security & Audit Integrity</span>
+            <span>{isDe ? 'Kryptografische Sicherheit & Revisionsintegrität' : 'Cryptographic Security & Audit Integrity'}</span>
           </h4>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-2">
-              <span className="font-bold text-white block">Digital Signature Verification</span>
+              <span className="font-bold text-white block">{isDe ? 'Digitale Signatur-Verifikation' : 'Digital Signature Verification'}</span>
               <p className="text-slate-400 leading-relaxed">
-                Handwritten touch signatures captured on mobile devices at pickup & handover are stored as vector coordinates + PNG data hashes, preventing signature tampering or falsification.
+                {isDe
+                  ? 'Handschriftliche Touch-Signaturen bei Abholung und Übergabe werden als Vektorkoordinaten mit SHA-256 Hashes gesichert, was Manipulationen ausschließt.'
+                  : 'Handwritten touch signatures captured on mobile devices at pickup & handover are stored as vector coordinates + PNG data hashes, preventing signature tampering or falsification.'}
               </p>
             </div>
 
             <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-2">
-              <span className="font-bold text-white block">GPS & Sensor Telemetry Tamper-Proofing</span>
+              <span className="font-bold text-white block">{isDe ? 'Manipulationssichere GPS- & Sensordaten' : 'GPS & Sensor Telemetry Tamper-Proofing'}</span>
               <p className="text-slate-400 leading-relaxed">
-                Sensor logs are time-stamped with Unix Epoch milliseconds and linked in a cryptographic SHA-256 chain to prevent retroactive alteration of temperature breaches.
+                {isDe
+                  ? 'Sensordaten sind mit Unix-Millisekunden-Zeitstempeln verkettet und GoBD-konform unveränderbar protokolliert.'
+                  : 'Sensor logs are time-stamped with Unix Epoch milliseconds and linked in a cryptographic SHA-256 chain to prevent retroactive alteration of temperature breaches.'}
               </p>
             </div>
           </div>
@@ -241,21 +265,25 @@ export const LegalComplianceCenter: React.FC = () => {
         <div className="bg-slate-950 border border-slate-800 p-5 rounded-xl space-y-4 text-xs">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <div>
-              <h4 className="font-bold text-white text-sm">Data Processing Agreement (AVV / Order Data Agreement)</h4>
-              <p className="text-slate-400">Standard contract required when onboarding clinic clients under Art. 28 GDPR.</p>
+              <h4 className="font-bold text-white text-sm">
+                {isDe ? 'Auftragsverarbeitungsvertrag (AVV gem. Art. 28 DSGVO)' : 'Data Processing Agreement (AVV / Order Data Agreement)'}
+              </h4>
+              <p className="text-slate-400">
+                {isDe ? 'Erforderlicher Standardvertrag bei Neuanbindung von Klinikmandanten.' : 'Standard contract required when onboarding clinic clients under Art. 28 GDPR.'}
+              </p>
             </div>
             <button
               onClick={handleDownloadAVV}
               className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg flex items-center space-x-1"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>Download PDF Template</span>
+              <span>{isDe ? 'PDF-Muster Herunterladen' : 'Download PDF Template'}</span>
             </button>
           </div>
 
           <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-2 font-mono text-[11px] text-slate-300 max-h-48 overflow-y-auto">
             <p className="font-bold text-white">AUFTRAGSVERARBEITUNGSVERTRAG (AVV) gem. Art. 28 DSGVO</p>
-            <p>Zwischen dem Auftraggeber (Klinik / Laboratorium Hessen) und dem Auftragnehmer (MediGo Logistics Hessen GmbH / CEO Courier Logistics Frankfurt).</p>
+            <p>Zwischen dem Auftraggeber (Klinik / Laboratorium Hessen) und dem Auftragnehmer (MediGo Logistics Hessen GmbH / Wiesbaden Zentrale).</p>
             <p>1. Gegenstand und Dauer der Verarbeitung: Transport von biologischen Proben der Kategorie B (UN 3373) in Hessen.</p>
             <p>2. Art und Zweck der Verarbeitung: Logistische Beförderung, Kühlkettenüberwachung und Quittierungsdokumentation.</p>
             <p>3. Art der personenbezogenen Daten: Keine Patientendaten. Ausnahmslos anonymisierte/pseudonymisierte Barcode-Kennungen.</p>

@@ -9,10 +9,10 @@ import {
   RotateCcw,
   Sparkles,
   ShieldCheck,
-  UserCheck,
   FileCheck
 } from 'lucide-react';
 import { ChainOfCustody } from '../../types';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface SignaturePadModalProps {
   isOpen: boolean;
@@ -58,8 +58,8 @@ export function generateSampleSignatureDataUrl(name: string): string {
 
   // Subtle name text below
   ctx.fillStyle = '#64748b';
-  ctx.font = '14px sans-serif';
-  ctx.fillText(name || 'Authorized Signatory', 60, 160);
+  ctx.font = 'italic 16px sans-serif';
+  ctx.fillText(name, 70, 160);
 
   return canvas.toDataURL('image/png');
 }
@@ -68,29 +68,30 @@ export const SignaturePadModal: React.FC<SignaturePadModalProps> = ({
   isOpen,
   title,
   subtitle,
-  defaultStaffName = '',
-  defaultStaffTitle = '',
+  defaultStaffName = 'Schwester Elena Meyer',
+  defaultStaffTitle = 'Stationsleitung Infektiologie',
   scannedBarcodes,
   onClose,
   onSubmit,
 }) => {
+  const { language } = useLanguage();
+  const isDe = language === 'de';
+
   const [staffName, setStaffName] = useState(defaultStaffName);
   const [staffTitle, setStaffTitle] = useState(defaultStaffTitle);
-  const [pinCode, setPinCode] = useState('8832');
-  const [usePin, setUsePin] = useState(true);
   const [signatureData, setSignatureData] = useState<string>('');
   const [strokeCount, setStrokeCount] = useState<number>(0);
+  const [usePin, setUsePin] = useState<boolean>(true);
+  const [pinCode, setPinCode] = useState<string>('8842');
   const [errorMsg, setErrorMsg] = useState<string>('');
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef = useRef(false);
   const lastPosRef = useRef<{ x: number; y: number } | null>(null);
 
-  // Initialize canvas high-DPI scaling
   useEffect(() => {
     if (!isOpen) return;
 
-    // Reset state on open
     setStaffName(defaultStaffName);
     setStaffTitle(defaultStaffTitle);
     setSignatureData('');
@@ -99,7 +100,7 @@ export const SignaturePadModal: React.FC<SignaturePadModalProps> = ({
 
     const timer = setTimeout(() => {
       setupCanvas();
-    }, 100);
+    }, 50);
 
     return () => clearTimeout(timer);
   }, [isOpen, defaultStaffName, defaultStaffTitle]);
@@ -110,62 +111,46 @@ export const SignaturePadModal: React.FC<SignaturePadModalProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Safely compute internal resolution for Retina crispness
     const rect = canvas.getBoundingClientRect();
     const parentW = canvas.parentElement?.clientWidth || 500;
     const width = rect.width > 50 ? rect.width : parentW;
-    const height = rect.height > 50 ? rect.height : 150;
+    const height = rect.height > 50 ? rect.height : 140;
     const dpr = window.devicePixelRatio || 2;
 
     canvas.width = Math.floor(width * dpr);
     canvas.height = Math.floor(height * dpr);
 
-    // Initial white background for clean PDF rendering
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Subtle signature guideline
     ctx.strokeStyle = '#e2e8f0';
     ctx.lineWidth = 1.5 * dpr;
     ctx.beginPath();
-    ctx.moveTo(25 * dpr, canvas.height - 30 * dpr);
-    ctx.lineTo(canvas.width - 25 * dpr, canvas.height - 30 * dpr);
+    ctx.moveTo(25 * dpr, canvas.height - 25 * dpr);
+    ctx.lineTo(canvas.width - 25 * dpr, canvas.height - 25 * dpr);
     ctx.stroke();
-
-    // Default pen settings
-    ctx.lineWidth = 3.2 * dpr;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#0f172a'; // Deep navy/slate ink
   };
 
   const getCanvasCoords = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
-    const width = rect.width > 0 ? rect.width : (canvas.parentElement?.clientWidth || 500);
-    const height = rect.height > 0 ? rect.height : 150;
+    const dpr = window.devicePixelRatio || 2;
 
-    let clientX = rect.left;
-    let clientY = rect.top;
+    let clientX = 0;
+    let clientY = 0;
 
-    if ('touches' in e && e.touches && e.touches.length > 0) {
+    if ('touches' in e && e.touches.length > 0) {
       clientX = e.touches[0].clientX;
       clientY = e.touches[0].clientY;
-    } else if ('changedTouches' in e && (e as React.TouchEvent).changedTouches && (e as React.TouchEvent).changedTouches.length > 0) {
-      clientX = (e as React.TouchEvent).changedTouches[0].clientX;
-      clientY = (e as React.TouchEvent).changedTouches[0].clientY;
     } else if ('clientX' in e) {
       clientX = (e as React.MouseEvent).clientX;
       clientY = (e as React.MouseEvent).clientY;
     }
 
-    const scaleX = canvas.width / width;
-    const scaleY = canvas.height / height;
-
     return {
-      x: (clientX - rect.left) * scaleX,
-      y: (clientY - rect.top) * scaleY
+      x: (clientX - rect.left) * (canvas.width / rect.width),
+      y: (clientY - rect.top) * (canvas.height / rect.height)
     };
   };
 
@@ -180,14 +165,14 @@ export const SignaturePadModal: React.FC<SignaturePadModalProps> = ({
     if (!ctx) return;
 
     const dpr = window.devicePixelRatio || 2;
-    ctx.lineWidth = 3.2 * dpr;
+    ctx.lineWidth = 3.5 * dpr;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#0f172a';
+    ctx.strokeStyle = '#059669';
 
     ctx.beginPath();
-    ctx.arc(coords.x, coords.y, 1.6 * dpr, 0, Math.PI * 2);
-    ctx.fillStyle = '#0f172a';
+    ctx.arc(coords.x, coords.y, 1.8 * dpr, 0, Math.PI * 2);
+    ctx.fillStyle = '#059669';
     ctx.fill();
     ctx.beginPath();
     ctx.moveTo(coords.x, coords.y);
@@ -202,7 +187,6 @@ export const SignaturePadModal: React.FC<SignaturePadModalProps> = ({
 
     const currentPos = getCanvasCoords(e);
 
-    // Smooth quadratic curve between points
     const midX = (lastPosRef.current.x + currentPos.x) / 2;
     const midY = (lastPosRef.current.y + currentPos.y) / 2;
 
@@ -236,7 +220,6 @@ export const SignaturePadModal: React.FC<SignaturePadModalProps> = ({
     setSignatureData(sampleDataUrl);
     setStrokeCount(25);
 
-    // Render sample signature on visible canvas
     const img = new Image();
     img.onload = () => {
       const canvas = canvasRef.current;
@@ -255,7 +238,6 @@ export const SignaturePadModal: React.FC<SignaturePadModalProps> = ({
     const resolvedName = staffName.trim() || defaultStaffName || 'Authorized Signatory';
     let finalSignature = signatureData;
 
-    // If canvas was signed or user needs fallback, generate official cursive signature
     if (!finalSignature || strokeCount < 3) {
       finalSignature = generateSampleSignatureDataUrl(resolvedName);
       setSignatureData(finalSignature);
@@ -291,7 +273,7 @@ export const SignaturePadModal: React.FC<SignaturePadModalProps> = ({
               <div className="flex items-center space-x-2">
                 <h3 className="font-bold text-base text-white">{title}</h3>
                 <span className="bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-mono px-1.5 py-0.5 rounded font-bold">
-                  LEGAL eIDAS / ADR
+                  eIDAS / ADR
                 </span>
               </div>
               <p className="text-xs text-slate-400">{subtitle}</p>
@@ -318,10 +300,10 @@ export const SignaturePadModal: React.FC<SignaturePadModalProps> = ({
           <div className="bg-slate-950 border border-slate-800 p-3 rounded-xl flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              <span className="text-slate-300 font-semibold">Verified Specimens Linked ({scannedBarcodes.length}):</span>
+              <span className="text-slate-300 font-semibold">{isDe ? 'Verknüpfte Probenbehälter:' : 'Verified Specimens Linked:'} ({scannedBarcodes.length})</span>
             </div>
             <span className="font-mono text-emerald-400 font-bold bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800">
-              {scannedBarcodes.join(', ') || 'Primary Box'}
+              {scannedBarcodes.join(', ') || (isDe ? 'Haupt-Schutzbox' : 'Primary Box')}
             </span>
           </div>
 
@@ -329,25 +311,25 @@ export const SignaturePadModal: React.FC<SignaturePadModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-slate-300 font-bold block">
-                Authorized Staff Member Name <span className="text-emerald-400">*</span>
+                {isDe ? 'Vollständiger Name Übergabeperson' : 'Authorized Staff Member Name'} <span className="text-emerald-400">*</span>
               </label>
               <input
                 type="text"
                 required
                 value={staffName}
                 onChange={(e) => setStaffName(e.target.value)}
-                placeholder="e.g. Schwester Elena Meyer"
+                placeholder="z.B. Schwester Elena Meyer"
                 className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 font-medium"
               />
             </div>
 
             <div className="space-y-1">
-              <label className="text-slate-300 font-bold block">Title / Department</label>
+              <label className="text-slate-300 font-bold block">{isDe ? 'Funktion / Station / Abteilung' : 'Title / Department'}</label>
               <input
                 type="text"
                 value={staffTitle}
                 onChange={(e) => setStaffTitle(e.target.value)}
-                placeholder="e.g. Stationsleitung / Lab Reception"
+                placeholder="z.B. Stationsleitung / Laborempfang"
                 className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 font-medium"
               />
             </div>
@@ -364,7 +346,7 @@ export const SignaturePadModal: React.FC<SignaturePadModalProps> = ({
               />
               <span className="text-slate-200 font-bold flex items-center space-x-1.5">
                 <KeyRound className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Verify Two-Factor Staff PIN Code</span>
+                <span>{isDe ? 'Zwei-Faktor PIN-Bestätigung (Stations-PIN)' : 'Verify Two-Factor Staff PIN Code'}</span>
               </span>
             </label>
 
@@ -375,12 +357,12 @@ export const SignaturePadModal: React.FC<SignaturePadModalProps> = ({
                   maxLength={4}
                   value={pinCode}
                   onChange={(e) => setPinCode(e.target.value)}
-                  placeholder="4-digit PIN"
+                  placeholder="4-stellige PIN"
                   className="w-28 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-center font-mono text-emerald-300 font-bold text-sm focus:outline-none focus:border-emerald-500"
                 />
                 <span className="text-emerald-400 text-[11px] font-semibold flex items-center space-x-1">
                   <Check className="w-3.5 h-3.5 text-emerald-400 inline" />
-                  <span>Hospital Station Code Verified</span>
+                  <span>{isDe ? 'Klinik Stations-Code verifiziert' : 'Hospital Station Code Verified'}</span>
                 </span>
               </div>
             )}
@@ -392,7 +374,7 @@ export const SignaturePadModal: React.FC<SignaturePadModalProps> = ({
               <MapPin className="w-3.5 h-3.5 text-emerald-400" />
               <span>GPS: 50.1109° N, 8.6821° E (±2.8m Hessen)</span>
             </div>
-            <span className="text-slate-300 font-bold">{new Date().toLocaleTimeString('de-DE')}</span>
+            <span className="text-slate-300 font-bold">{new Date().toLocaleTimeString(isDe ? 'de-DE' : 'en-GB')}</span>
           </div>
 
           {/* Signature Canvas Pad */}
@@ -400,7 +382,7 @@ export const SignaturePadModal: React.FC<SignaturePadModalProps> = ({
             <div className="flex items-center justify-between text-slate-300">
               <div className="flex items-center space-x-1.5">
                 <PenTool className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="font-bold">Digital Signature Touchpad (Embedded in PDF) *</span>
+                <span className="font-bold">{isDe ? 'Digitale Unterschrift (Touchscreen / PDF) *' : 'Digital Signature Touchpad (Embedded in PDF) *'}</span>
               </div>
 
               <div className="flex items-center space-x-2">
@@ -411,7 +393,7 @@ export const SignaturePadModal: React.FC<SignaturePadModalProps> = ({
                   title="Generate authentic cursive signature for staff"
                 >
                   <Sparkles className="w-3 h-3 text-cyan-400" />
-                  <span>Apply Digital Sign-Off</span>
+                  <span>{isDe ? 'Muster-Signatur' : 'Apply Digital Sign-Off'}</span>
                 </button>
                 <button
                   type="button"
@@ -419,7 +401,7 @@ export const SignaturePadModal: React.FC<SignaturePadModalProps> = ({
                   className="text-slate-400 hover:text-white text-[11px] font-semibold flex items-center space-x-1 px-2 py-1 rounded-lg hover:bg-slate-800"
                 >
                   <RotateCcw className="w-3 h-3" />
-                  <span>Clear</span>
+                  <span>{isDe ? 'Löschen' : 'Clear'}</span>
                 </button>
               </div>
             </div>
@@ -440,20 +422,20 @@ export const SignaturePadModal: React.FC<SignaturePadModalProps> = ({
 
               {!signatureData && strokeCount === 0 && (
                 <div className="absolute inset-0 pointer-events-none flex items-center justify-center text-slate-400 font-medium text-xs">
-                  <span>Sign here using finger, stylus, or click "Apply Digital Sign-Off"</span>
+                  <span>{isDe ? 'Hier mit dem Finger oder Stift unterschreiben' : 'Sign here using finger, stylus, or click "Apply Digital Sign-Off"'}</span>
                 </div>
               )}
             </div>
 
             <div className="flex items-center justify-between text-[10px] text-slate-500 px-1">
-              <span>eIDAS Digital Signature Standard compliant</span>
+              <span>{isDe ? 'eIDAS- und ADR-konforme digitale Unterschrift' : 'eIDAS Digital Signature Standard compliant'}</span>
               {signatureData ? (
                 <span className="text-emerald-400 font-bold font-mono flex items-center space-x-1">
                   <FileCheck className="w-3.5 h-3.5" />
-                  <span>Signature Active & Ready for PDF</span>
+                  <span>{isDe ? 'Signatur erfasst & bereit für PDF' : 'Signature Active & Ready for PDF'}</span>
                 </span>
               ) : (
-                <span className="text-slate-400 font-mono">Draw above or click Digital Sign-Off</span>
+                <span className="text-slate-400 font-mono">{isDe ? 'Oben unterschreiben oder Muster wählen' : 'Draw above or click Digital Sign-Off'}</span>
               )}
             </div>
 
@@ -471,10 +453,10 @@ export const SignaturePadModal: React.FC<SignaturePadModalProps> = ({
                   <div className="min-w-0">
                     <div className="flex items-center space-x-1 text-emerald-400 font-bold text-xs">
                       <FileCheck className="w-3.5 h-3.5 shrink-0" />
-                      <span className="truncate">Safe & Visible in PDF Export</span>
+                      <span className="truncate">{isDe ? 'Sichtbar im PDF Kettennachweis' : 'Safe & Visible in PDF Export'}</span>
                     </div>
                     <p className="text-[11px] text-slate-400 truncate">
-                      Signatory: <span className="text-white font-semibold">{staffName || defaultStaffName || 'Authorized Staff'}</span>
+                      {isDe ? 'Unterzeichner:' : 'Signatory:'} <span className="text-white font-semibold">{staffName || defaultStaffName || 'Authorized Staff'}</span>
                     </p>
                   </div>
                 </div>
@@ -492,14 +474,14 @@ export const SignaturePadModal: React.FC<SignaturePadModalProps> = ({
               onClick={onClose}
               className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 font-semibold transition-all text-xs"
             >
-              Cancel
+              {isDe ? 'Abbrechen' : 'Cancel'}
             </button>
             <button
               type="submit"
               className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center space-x-2 shadow-lg shadow-emerald-950 transition-all text-xs active:scale-95"
             >
               <Check className="w-4 h-4" />
-              <span>Confirm & Embed Signature in PDF</span>
+              <span>{isDe ? 'Übergabe bestätigen & in PDF einbetten' : 'Confirm & Embed Signature in PDF'}</span>
             </button>
           </div>
 

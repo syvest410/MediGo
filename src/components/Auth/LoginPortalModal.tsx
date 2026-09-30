@@ -24,6 +24,7 @@ import {
 import { Role, User } from '../../types';
 import { INITIAL_USERS } from '../../lib/db';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface LoginPortalModalProps {
   isOpen: boolean;
@@ -152,6 +153,8 @@ export const LoginPortalModal: React.FC<LoginPortalModalProps> = ({
   onSelectUser,
   onRegisterUser,
 }) => {
+  const { language } = useLanguage();
+  const isDe = language === 'de';
   const { login } = useAuth();
   const [activeTab, setActiveTab] = useState<'LOGIN' | 'SIGNUP' | 'POLP_MATRIX' | 'SHARE_CREDENTIALS'>('LOGIN');
   const [selectedRole, setSelectedRole] = useState<Role>('CLIENT_CLINIC');
@@ -319,12 +322,16 @@ PUBLIC TRACKING (Zero Auth Required):
             </div>
             <div>
               <h3 className="font-extrabold text-base text-white flex items-center space-x-2">
-                <span>MediGo Security & Role Access Portal</span>
+                <span>{isDe ? 'MediGo Sicherheits- & Rollen-Zugangsportal' : 'MediGo Security & Role Access Portal'}</span>
                 <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 px-2 py-0.5 rounded font-mono font-bold">
-                  PoLP Active
+                  {isDe ? 'PoLP Aktiv' : 'PoLP Active'}
                 </span>
               </h3>
-              <p className="text-xs text-slate-400">Enforcing Principle of Least Privilege for UN 3373 Medical Specimens</p>
+              <p className="text-xs text-slate-400">
+                {isDe
+                  ? 'Durchsetzung des Least-Privilege-Prinzips für UN 3373 medizinische Proben'
+                  : 'Enforcing Principle of Least Privilege for UN 3373 Medical Specimens'}
+              </p>
             </div>
           </div>
 
@@ -344,7 +351,7 @@ PUBLIC TRACKING (Zero Auth Required):
             }`}
           >
             <Lock className="w-4 h-4" />
-            <span>1-Click Sample Logins</span>
+            <span>{isDe ? '1-Klick Demo-Anmeldung' : '1-Click Sample Logins'}</span>
           </button>
 
           <button
@@ -356,7 +363,7 @@ PUBLIC TRACKING (Zero Auth Required):
             }`}
           >
             <ShieldCheck className="w-4 h-4" />
-            <span>Least Privilege Matrix</span>
+            <span>{isDe ? 'Rollen-Berechtigungsmatrix' : 'Least Privilege Matrix'}</span>
           </button>
 
           <button
@@ -368,7 +375,7 @@ PUBLIC TRACKING (Zero Auth Required):
             }`}
           >
             <UserCheck className="w-4 h-4" />
-            <span>Register Account</span>
+            <span>{isDe ? 'Konto registrieren' : 'Register Account'}</span>
           </button>
 
           <button
@@ -380,7 +387,7 @@ PUBLIC TRACKING (Zero Auth Required):
             }`}
           >
             <Share2 className="w-4 h-4" />
-            <span>Credentials Sheet</span>
+            <span>{isDe ? 'Zugangsdaten-Übersicht' : 'Credentials Sheet'}</span>
           </button>
         </div>
 

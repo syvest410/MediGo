@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
-import { Calculator, Calendar, Euro, Percent, MapPin, CheckCircle2, Sparkles, AlertCircle, RefreshCw } from 'lucide-react';
+import { Calculator, Calendar, Euro, MapPin, CheckCircle2, Sparkles, RefreshCw } from 'lucide-react';
 import { BaseTariffSettings, GermanFederalState } from '../../types';
 import { getTariffSettings, updateTariffSettings } from '../../lib/db';
 import { checkGermanPublicHoliday, calculateDynamicOrderTariff } from '../../lib/billingEngine';
+import { useLanguage } from '../../context/LanguageContext';
 
 export const TariffHolidayManager: React.FC = () => {
+  const { language } = useLanguage();
+  const isDe = language === 'de';
+
   const [settings, setSettings] = useState<BaseTariffSettings>(getTariffSettings());
   const [isSaved, setIsSaved] = useState(false);
 
@@ -39,11 +43,15 @@ export const TariffHolidayManager: React.FC = () => {
         <div>
           <div className="flex items-center space-x-2 text-red-400 font-semibold text-xs tracking-wider uppercase">
             <Calculator className="w-4 h-4" />
-            <span>German Feiertag & Dynamic Tariff Engine</span>
+            <span>{isDe ? 'Deutsche Feiertags- & Tarif-Engine' : 'German Feiertag & Dynamic Tariff Engine'}</span>
           </div>
-          <h2 className="text-xl font-bold text-white mt-1">Tariff Structure & German Public Holidays (*Feiertage*)</h2>
+          <h2 className="text-xl font-bold text-white mt-1">
+            {isDe ? 'Tarifstruktur & Deutsche gesetzliche Feiertage' : 'Tariff Structure & German Public Holidays (*Feiertage*)'}
+          </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Automatic Feiertag detection (Hessen & nationwide) with dynamic percentage markups on weekends & public holidays.
+            {isDe
+              ? 'Automatische Feiertagserkennung (Hessen & bundesweit) mit dynamischen prozentualen Zuschlägen an Wochenenden & Feiertagen.'
+              : 'Automatic Feiertag detection (Hessen & nationwide) with dynamic percentage markups on weekends & public holidays.'}
           </p>
         </div>
 
@@ -52,7 +60,7 @@ export const TariffHolidayManager: React.FC = () => {
           className="bg-red-600 hover:bg-red-500 text-white font-bold px-5 py-2.5 rounded-xl flex items-center space-x-2 transition-all shadow-lg shadow-red-950/40 shrink-0 self-start md:self-auto"
         >
           {isSaved ? <CheckCircle2 className="w-4 h-4" /> : <RefreshCw className="w-4 h-4" />}
-          <span>{isSaved ? 'Tariffs Saved!' : 'Save Tariff Config'}</span>
+          <span>{isSaved ? (isDe ? 'Tarife gespeichert!' : 'Tariffs Saved!') : (isDe ? 'Tarifkonfiguration speichern' : 'Save Tariff Config')}</span>
         </button>
       </div>
 
@@ -62,7 +70,7 @@ export const TariffHolidayManager: React.FC = () => {
         <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
           <h3 className="font-bold text-sm text-white flex items-center space-x-2 border-b border-slate-800 pb-3">
             <Euro className="w-4 h-4 text-emerald-400" />
-            <span>Base Fare & Dynamic Markup Settings</span>
+            <span>{isDe ? 'Grundtarif & dynamische Zuschlagseinstellungen' : 'Base Fare & Dynamic Markup Settings'}</span>
           </h3>
 
           <div className="space-y-3 text-xs">
@@ -70,15 +78,15 @@ export const TariffHolidayManager: React.FC = () => {
             <div>
               <label className="block text-slate-300 font-medium mb-1 flex items-center space-x-1.5">
                 <MapPin className="w-3.5 h-3.5 text-blue-400" />
-                <span>Federal State (*Bundesland*) Scope</span>
+                <span>{isDe ? 'Bundesland-Geltungsbereich' : 'Federal State (*Bundesland*) Scope'}</span>
               </label>
               <select
                 value={settings.selectedState}
                 onChange={(e) => setSettings({ ...settings, selectedState: e.target.value as GermanFederalState })}
                 className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-semibold"
               >
-                <option value="ALL_MIX">All States Mixed (Hessen, Bayern, NW, BW)</option>
-                <option value="HE">Hessen (HE)</option>
+                <option value="ALL_MIX">{isDe ? 'Alle Bundesländer gemischt (Hessen, Bayern, NW, BW)' : 'All States Mixed (Hessen, Bayern, NW, BW)'}</option>
+                <option value="HE">Hessen (HE) - {isDe ? 'Zentrales Einsatzgebiet' : 'Main Hub'}</option>
                 <option value="BY">Bayern (BY)</option>
                 <option value="NW">Nordrhein-Westfalen (NW)</option>
                 <option value="BW">Baden-Württemberg (BW)</option>
@@ -88,7 +96,7 @@ export const TariffHolidayManager: React.FC = () => {
             {/* Base Pickup Fee */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-400 mb-1">Base Pickup Fee (€)</label>
+                <label className="block text-slate-400 mb-1">{isDe ? 'Grundgebühr Abholung (€)' : 'Base Pickup Fee (€)'}</label>
                 <div className="relative">
                   <input
                     type="number"
@@ -102,7 +110,7 @@ export const TariffHolidayManager: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1">Distance Rate (€ / km)</label>
+                <label className="block text-slate-400 mb-1">{isDe ? 'Kilometer-Tarif (€ / km)' : 'Distance Rate (€ / km)'}</label>
                 <div className="relative">
                   <input
                     type="number"
@@ -119,7 +127,7 @@ export const TariffHolidayManager: React.FC = () => {
             {/* Express Surcharge & Weekend Markup */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-400 mb-1">Express Emergency Surcharge (€)</label>
+                <label className="block text-slate-400 mb-1">{isDe ? 'Express-Notfallzuschlag (€)' : 'Express Emergency Surcharge (€)'}</label>
                 <div className="relative">
                   <input
                     type="number"
@@ -133,7 +141,7 @@ export const TariffHolidayManager: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1">Weekend Markup (%)</label>
+                <label className="block text-slate-400 mb-1">{isDe ? 'Wochenend-Zuschlag (%)' : 'Weekend Markup (%)'}</label>
                 <div className="relative">
                   <input
                     type="number"
@@ -149,7 +157,7 @@ export const TariffHolidayManager: React.FC = () => {
 
             {/* Holiday Markup */}
             <div>
-              <label className="block text-slate-400 mb-1">Public Holiday (*Feiertag*) Surcharge Markup (%)</label>
+              <label className="block text-slate-400 mb-1">{isDe ? 'Gesetzlicher Feiertagszuschlag (%)' : 'Public Holiday (*Feiertag*) Surcharge Markup (%)'}</label>
               <div className="relative">
                 <input
                   type="number"
@@ -161,7 +169,9 @@ export const TariffHolidayManager: React.FC = () => {
                 <span className="absolute right-3 top-2.5 text-slate-500 font-bold">%</span>
               </div>
               <p className="text-[11px] text-slate-500 mt-1">
-                German labor regulation standard: Public holidays (Feiertage) carry +100% or +50% tax-free courier markup.
+                {isDe
+                  ? 'Deutsches Arbeitsrecht: Gesetzliche Feiertage (z.B. Tag d. Dt. Einheit, Karfreitag) mit steuerbegünstigtem Kurierzuschlag (+100% / +50%).'
+                  : 'German labor regulation standard: Public holidays (Feiertage) carry +100% or +50% tax-free courier markup.'}
               </p>
             </div>
 
@@ -173,17 +183,17 @@ export const TariffHolidayManager: React.FC = () => {
           <h3 className="font-bold text-sm text-white flex items-center justify-between border-b border-slate-800 pb-3">
             <span className="flex items-center space-x-2">
               <Calendar className="w-4 h-4 text-red-400" />
-              <span>Interactive Feiertag & Dynamic Price Simulator</span>
+              <span>{isDe ? 'Interaktiver Feiertags- & Preissimulator' : 'Interactive Feiertag & Dynamic Price Simulator'}</span>
             </span>
             <span className="bg-red-950/80 text-red-300 border border-red-800/80 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
-              Live Preview
+              {isDe ? 'Live-Vorschau' : 'Live Preview'}
             </span>
           </h3>
 
           <div className="space-y-3 text-xs">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-400 mb-1">Transport Date</label>
+                <label className="block text-slate-400 mb-1">{isDe ? 'Transportdatum' : 'Transport Date'}</label>
                 <input
                   type="date"
                   value={simDate}
@@ -193,7 +203,7 @@ export const TariffHolidayManager: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1">Distance (km)</label>
+                <label className="block text-slate-400 mb-1">{isDe ? 'Strecke (km)' : 'Distance (km)'}</label>
                 <input
                   type="number"
                   value={simKm}
@@ -205,7 +215,7 @@ export const TariffHolidayManager: React.FC = () => {
 
             <div className="flex items-center justify-between pt-1">
               <div className="flex items-center space-x-3">
-                <label className="text-slate-400">Specimen Boxes:</label>
+                <label className="text-slate-400">{isDe ? 'Probenboxen:' : 'Specimen Boxes:'}</label>
                 <div className="flex items-center space-x-1">
                   {[1, 2, 3, 5].map((count) => (
                     <button
@@ -228,7 +238,7 @@ export const TariffHolidayManager: React.FC = () => {
                   onChange={(e) => setSimExpress(e.target.checked)}
                   className="rounded bg-slate-950 border-slate-700 text-red-600 focus:ring-0"
                 />
-                <span className="font-semibold text-slate-300">Express Emergency</span>
+                <span className="font-semibold text-slate-300">{isDe ? 'Express-Notfall' : 'Express Emergency'}</span>
               </label>
             </div>
 
@@ -245,18 +255,18 @@ export const TariffHolidayManager: React.FC = () => {
                   <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                   <span>
                     {holRes.isHoliday
-                      ? `FEIERTAG DETECTED: ${holRes.name}`
+                      ? `${isDe ? 'GESETZLICHER FEIERTAG ERKANNT:' : 'FEIERTAG DETECTED:'} ${holRes.name}`
                       : holRes.isWeekend
-                      ? `WEEKEND TARIFF: ${holRes.dayOfWeekName}`
-                      : `Standard Weekday: ${holRes.dayOfWeekName}`}
+                      ? `${isDe ? 'WOCHENEND-TARIF:' : 'WEEKEND TARIFF:'} ${holRes.dayOfWeekName}`
+                      : `${isDe ? 'Standard-Werktag:' : 'Standard Weekday:'} ${holRes.dayOfWeekName}`}
                   </span>
                 </span>
                 <span className="font-extrabold text-xs">
                   {holRes.isHoliday
-                    ? `+${settings.holidayMarkupPercent}% Surcharge`
+                    ? `+${settings.holidayMarkupPercent}% ${isDe ? 'Zuschlag' : 'Surcharge'}`
                     : holRes.isWeekend
-                    ? `+${settings.weekendMarkupPercent}% Surcharge`
-                    : 'Standard Rate'}
+                    ? `+${settings.weekendMarkupPercent}% ${isDe ? 'Zuschlag' : 'Surcharge'}`
+                    : (isDe ? 'Normaltarif' : 'Standard Rate')}
                 </span>
               </div>
             </div>
@@ -264,43 +274,43 @@ export const TariffHolidayManager: React.FC = () => {
             {/* Calculated Price Line-Item Breakdown */}
             <div className="bg-slate-950 border border-slate-800 p-3.5 rounded-xl space-y-2 text-[11px]">
               <div className="font-bold text-white border-b border-slate-800 pb-1 flex justify-between">
-                <span>Calculated Tariff Breakdown</span>
-                <span>Net Subtotal & MwSt</span>
+                <span>{isDe ? 'Berechnete Tarifaufschlüsselung' : 'Calculated Tariff Breakdown'}</span>
+                <span>{isDe ? 'Netto & 19% MwSt.' : 'Net Subtotal & MwSt'}</span>
               </div>
 
               <div className="flex justify-between text-slate-400">
-                <span>Base Pickup Fee:</span>
+                <span>{isDe ? 'Grundgebühr Abholung:' : 'Base Pickup Fee:'}</span>
                 <span>€{tariffCalc.priceBreakdown.basePickupFeeEur.toFixed(2)}</span>
               </div>
 
               <div className="flex justify-between text-slate-400">
-                <span>Distance ({simKm} km @ €{settings.ratePerKmEur}/km):</span>
+                <span>{isDe ? `Fahrstrecke (${simKm} km à €${settings.ratePerKmEur}/km):` : `Distance (${simKm} km @ €${settings.ratePerKmEur}/km):`}</span>
                 <span>€{tariffCalc.priceBreakdown.distanceFeeEur.toFixed(2)}</span>
               </div>
 
               {simExpress && (
                 <div className="flex justify-between text-amber-400 font-semibold">
-                  <span>Express Emergency Surcharge:</span>
+                  <span>{isDe ? 'Express-Notfallzuschlag:' : 'Express Emergency Surcharge:'}</span>
                   <span>+€{settings.expressEmergencySurchargeEur.toFixed(2)}</span>
                 </div>
               )}
 
               {tariffCalc.priceBreakdown.holidaySurchargeEur > 0 && (
                 <div className="flex justify-between text-red-400 font-bold">
-                  <span>Holiday Feiertag Surcharge (+{settings.holidayMarkupPercent}%):</span>
+                  <span>{isDe ? `Feiertagszuschlag (+${settings.holidayMarkupPercent}%):` : `Holiday Feiertag Surcharge (+${settings.holidayMarkupPercent}%):`}</span>
                   <span>+€{tariffCalc.priceBreakdown.holidaySurchargeEur.toFixed(2)}</span>
                 </div>
               )}
 
               {tariffCalc.priceBreakdown.weekendSurchargeEur > 0 && (
                 <div className="flex justify-between text-emerald-400 font-bold">
-                  <span>Weekend Surcharge (+{settings.weekendMarkupPercent}%):</span>
+                  <span>{isDe ? `Wochenendzuschlag (+${settings.weekendMarkupPercent}%):` : `Weekend Surcharge (+${settings.weekendMarkupPercent}%):`}</span>
                   <span>+€{tariffCalc.priceBreakdown.weekendSurchargeEur.toFixed(2)}</span>
                 </div>
               )}
 
               <div className="border-t border-slate-800 pt-2 flex items-center justify-between font-bold text-sm text-white">
-                <span>Total Client Fare (incl. 19% MwSt):</span>
+                <span>{isDe ? 'Gesamtpreis Auftrag (inkl. 19% MwSt.):' : 'Total Client Fare (incl. 19% MwSt):'}</span>
                 <span className="text-emerald-400 text-base">€{tariffCalc.calculatedPriceEur.toFixed(2)}</span>
               </div>
             </div>

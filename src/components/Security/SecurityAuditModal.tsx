@@ -18,6 +18,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { Role, User } from '../../types';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface SecurityAuditModalProps {
   isOpen: boolean;
@@ -34,6 +35,8 @@ export const SecurityAuditModal: React.FC<SecurityAuditModalProps> = ({
   onSwitchRole,
   isNightShift = true,
 }) => {
+  const { language } = useLanguage();
+  const isDe = language === 'de';
   const [testSimulating, setTestSimulating] = useState(false);
   const [simulationResult, setSimulationResult] = useState<string | null>(null);
 
@@ -145,13 +148,15 @@ export const SecurityAuditModal: React.FC<SecurityAuditModalProps> = ({
             </div>
             <div>
               <h3 className={`font-extrabold text-base flex items-center space-x-2 ${isNightShift ? 'text-white' : 'text-slate-900'}`}>
-                <span>MediGo Security & Role Access Control Matrix</span>
+                <span>{isDe ? 'MediGo Sicherheits- & Rollenberechtigungs-Matrix' : 'MediGo Security & Role Access Control Matrix'}</span>
                 <span className="bg-emerald-950 text-emerald-300 border border-emerald-700 text-[10px] px-2 py-0.5 rounded font-mono uppercase">
-                  Verified Active
+                  {isDe ? 'Verifiziert Aktiv' : 'Verified Active'}
                 </span>
               </h3>
               <p className={`text-xs ${isNightShift ? 'text-slate-400' : 'text-slate-600'}`}>
-                Role-Based Access Control (RBAC), Multi-Tenant Data Scope & Encryption Audit
+                {isDe
+                  ? 'Rollenbasierte Zugriffskontrolle (RBAC), Mandantentrennung & GoBD-Verschlüsselungsaudit'
+                  : 'Role-Based Access Control (RBAC), Multi-Tenant Data Scope & Encryption Audit'}
               </p>
             </div>
           </div>
