@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Order, OrderStatus, TRANSPORT_TEMP_RANGES } from '../../types';
+import { Order, OrderStatus, TRANSPORT_TEMP_RANGES, getTransportTempRange } from '../../types';
 import { PreTripChecklistModal } from './PreTripChecklistModal';
 import { BarcodeScannerModal } from './BarcodeScannerModal';
 import { SignaturePadModal } from './SignaturePadModal';
@@ -171,7 +171,7 @@ export const DriverOrders: React.FC<DriverOrdersProps> = ({
             <div className="flex items-center justify-between pt-1 border-t border-slate-800/80 text-slate-300 font-medium">
               <div className="flex items-center space-x-2">
                 <Thermometer className="w-4 h-4 text-emerald-400" />
-                <span>{isDe ? 'Sollwert:' : 'Spec:'} {TRANSPORT_TEMP_RANGES[currentOrder.transportType]?.label}</span>
+                <span>{isDe ? 'Sollwert:' : 'Spec:'} {getTransportTempRange(currentOrder.transportType).label}</span>
               </div>
 
               <button

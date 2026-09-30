@@ -1,5 +1,5 @@
 import React from 'react';
-import { Order, TemperatureTelemetry, TRANSPORT_TEMP_RANGES } from '../../types';
+import { Order, TemperatureTelemetry, TRANSPORT_TEMP_RANGES, getTransportTempRange } from '../../types';
 import { Thermometer, AlertTriangle, Flame, Bell } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -18,9 +18,9 @@ export const TemperatureAlertsPanel: React.FC<TemperatureAlertsPanelProps> = ({
   // Collect all breach incidents across active orders
   const allTelemetryWithBreaches: { order: Order; telemetry: TemperatureTelemetry }[] = [];
 
-  orders.forEach((o) => {
-    o.telemetryLogs.forEach((tLog) => {
-      if (tLog.isBreach) {
+  (orders || []).forEach((o) => {
+    (o?.telemetryLogs || []).forEach((tLog) => {
+      if (tLog?.isBreach) {
         allTelemetryWithBreaches.push({ order: o, telemetry: tLog });
       }
     });
@@ -52,10 +52,12 @@ export const TemperatureAlertsPanel: React.FC<TemperatureAlertsPanelProps> = ({
 
       {/* Active Orders Temperature Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {orders.map((ord) => {
-          const tempRange = TRANSPORT_TEMP_RANGES[ord.transportType];
-          const latestTel = ord.telemetryLogs[0];
-          const isBreach = latestTel?.isBreach;
+        {(orders || []).map((ord) => {
+          const tempRange = getTransportTempRange(ord?.transportType);
+          const minVal = tempRange?.min ?? 2;
+          const maxVal = tempRange?.max ?? 8;
+          const latestTel = ord?.telemetryLogs?.[0];
+          const isBreach = Boolean(latestTel?.isBreach);
 
           return (
             <div
@@ -91,7 +93,7 @@ export const TemperatureAlertsPanel: React.FC<TemperatureAlertsPanelProps> = ({
                 <div className="text-right">
                   <span className="text-slate-400 text-[10px] block">{isDe ? 'Soll-Bereich' : 'Target Range'}</span>
                   <span className="text-slate-200 text-xs font-semibold">
-                    {tempRange.min}°C {isDe ? 'bis' : 'to'} {tempRange.max}°C
+                    {minVal}°C {isDe ? 'bis' : 'to'} {maxVal}°C
                   </span>
                 </div>
               </div>
@@ -132,22 +134,27 @@ export const TemperatureAlertsPanel: React.FC<TemperatureAlertsPanelProps> = ({
           </p>
         ) : (
           <div className="max-h-40 overflow-y-auto space-y-1.5 text-xs font-mono">
-            {allTelemetryWithBreaches.map(({ order, telemetry }, idx) => (
-              <div key={idx} className="bg-rose-950/60 border border-rose-800 p-2 rounded text-rose-200 flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-                  <div>
-                    <span className="font-bold text-white">{order.trackingNumber}: </span>
-                    <span>
-                      {isDe
-                        ? `Gemessen ${telemetry.tempCelsius}°C (Soll: ${TRANSPORT_TEMP_RANGES[order.transportType].min}°C - ${TRANSPORT_TEMP_RANGES[order.transportType].max}°C)`
-                        : `Recorded ${telemetry.tempCelsius}°C (Target: ${TRANSPORT_TEMP_RANGES[order.transportType].min}°C - ${TRANSPORT_TEMP_RANGES[order.transportType].max}°C)`}
-                    </span>
+            {allTelemetryWithBreaches.map(({ order, telemetry }, idx) => {
+              const range = getTransportTempRange(order?.transportType);
+              const minVal = range?.min ?? 2;
+              const maxVal = range?.max ?? 8;
+              return (
+                <div key={idx} className="bg-rose-950/60 border border-rose-800 p-2 rounded text-rose-200 flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <div>
+                      <span className="font-bold text-white">{order?.trackingNumber || 'ORDER'}: </span>
+                      <span>
+                        {isDe
+                          ? `Gemessen ${telemetry.tempCelsius}°C (Soll: ${minVal}°C - ${maxVal}°C)`
+                          : `Recorded ${telemetry.tempCelsius}°C (Target: ${minVal}°C - ${maxVal}°C)`}
+                      </span>
+                    </div>
                   </div>
+                  <span className="text-[10px] text-rose-300">{new Date(telemetry.timestamp).toLocaleTimeString(isDe ? 'de-DE' : 'en-US')}</span>
                 </div>
-                <span className="text-[10px] text-rose-300">{new Date(telemetry.timestamp).toLocaleTimeString(isDe ? 'de-DE' : 'en-US')}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

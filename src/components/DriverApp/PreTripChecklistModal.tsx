@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Order, TRANSPORT_TEMP_RANGES, PreTripCheck } from '../../types';
+import { Order, TRANSPORT_TEMP_RANGES, PreTripCheck, getTransportTempRange } from '../../types';
 import {
   ShieldCheck,
   Thermometer,
@@ -35,8 +35,13 @@ export const PreTripChecklistModal: React.FC<PreTripChecklistModalProps> = ({
   const [absorbentMaterial, setAbsorbentMaterial] = useState(true);
   const [tempBoxCalibrated, setTempBoxCalibrated] = useState(true);
   
-  const tempRange = TRANSPORT_TEMP_RANGES[order.transportType] || TRANSPORT_TEMP_RANGES['REFRIGERATED_2_8C'];
-  const [initialTemp, setInitialTemp] = useState<number>(+( (tempRange.min + tempRange.max) / 2 ).toFixed(1));
+  const tempRange = getTransportTempRange(order?.transportType);
+  const minTemp = tempRange?.min ?? 2;
+  const maxTemp = tempRange?.max ?? 8;
+  const tempLabel = tempRange?.label || 'Cold Chain (2°C to 8°C)';
+  const tempDesc = tempRange?.desc || 'UN 3373 standard certified transport';
+
+  const [initialTemp, setInitialTemp] = useState<number>(+( (minTemp + maxTemp) / 2 ).toFixed(1));
   const [signatureData, setSignatureData] = useState<string>('');
   const [strokeCount, setStrokeCount] = useState<number>(0);
   const [errorMsg, setErrorMsg] = useState<string>('');
@@ -206,8 +211,8 @@ export const PreTripChecklistModal: React.FC<PreTripChecklistModalProps> = ({
       absorbentMaterialPresent: absorbentMaterial,
       tempBoxCalibrated: tempBoxCalibrated,
       initialTempCelsius: Number(initialTemp),
-      targetTempMinCelsius: tempRange.min,
-      targetTempMaxCelsius: tempRange.max,
+      targetTempMinCelsius: minTemp,
+      targetTempMaxCelsius: maxTemp,
       driverSignatureBase64: finalSignature,
       approved: true
     });
@@ -255,10 +260,10 @@ export const PreTripChecklistModal: React.FC<PreTripChecklistModalProps> = ({
           {/* Transport Specifications Info */}
           <div className="bg-slate-950 border border-slate-800 p-3 rounded-xl space-y-1">
             <div className="flex items-center justify-between font-bold text-slate-200">
-              <span>{isDe ? 'Soll-Temperatur:' : 'Required Range:'} {tempRange.label}</span>
-              <span className="text-cyan-400 font-mono">{tempRange.min}°C bis {tempRange.max}°C</span>
+              <span>{isDe ? 'Soll-Temperatur:' : 'Required Range:'} {tempLabel}</span>
+              <span className="text-cyan-400 font-mono">{minTemp}°C bis {maxTemp}°C</span>
             </div>
-            <p className="text-slate-400 text-[11px]">{tempRange.desc}</p>
+            <p className="text-slate-400 text-[11px]">{tempDesc}</p>
           </div>
 
           {/* Checklist Options */}

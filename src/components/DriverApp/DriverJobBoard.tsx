@@ -1,5 +1,5 @@
 import React from 'react';
-import { Order, TRANSPORT_TEMP_RANGES } from '../../types';
+import { Order, TRANSPORT_TEMP_RANGES, getTransportTempRange } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
 import { MapPin, Clock, CheckCircle2, UserCheck, ArrowRight } from 'lucide-react';
 
@@ -46,7 +46,7 @@ export const DriverJobBoard: React.FC<DriverJobBoardProps> = ({ orders, onClaimO
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {availableJobs.map((job) => {
-            const tempRange = TRANSPORT_TEMP_RANGES[job.transportType];
+            const tempRange = getTransportTempRange(job.transportType);
 
             return (
               <div

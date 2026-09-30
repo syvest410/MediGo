@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Order, OrderStatus, TransportType, TRANSPORT_TEMP_RANGES } from '../../types';
+import { Order, OrderStatus, TransportType, TRANSPORT_TEMP_RANGES, getTransportTempRange } from '../../types';
 import { generateChainOfCustodyPDF } from '../../lib/pdfGenerator';
 import { Plus, Filter, Search, Download, Eye, Thermometer, ShieldCheck, Truck, Clock, QrCode } from 'lucide-react';
 import { OrderQRCodeModal } from './OrderQRCodeModal';
@@ -173,7 +173,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
               </tr>
             ) : (
               filteredOrders.map((ord) => {
-                const tempRange = TRANSPORT_TEMP_RANGES[ord.transportType];
+                const tempRange = getTransportTempRange(ord.transportType);
                 return (
                   <tr key={ord.id} className="hover:bg-slate-800/50 transition-colors">
                     <td className="p-3">

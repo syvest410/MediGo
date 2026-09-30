@@ -1,6 +1,6 @@
 // Real-time Temperature Telemetry Simulator with Breach Alerting
 
-import { Order, TemperatureTelemetry, TRANSPORT_TEMP_RANGES } from '../types';
+import { Order, TemperatureTelemetry, TRANSPORT_TEMP_RANGES, getTransportTempRange } from '../types';
 
 export interface TelemetryListener {
   (telemetry: TemperatureTelemetry, isAlertBreach: boolean): void;
@@ -36,11 +36,13 @@ export class TemperatureSimulator {
       if (inTransitOrders.length === 0) return;
 
       inTransitOrders.forEach(order => {
-        const range = TRANSPORT_TEMP_RANGES[order.transportType] || TRANSPORT_TEMP_RANGES['REFRIGERATED_2_8C'];
+        const range = getTransportTempRange(order?.transportType);
+        const minVal = range?.min ?? 2;
+        const maxVal = range?.max ?? 8;
         
         // Initialize base temp if not set
         if (this.currentTemps[order.id] === undefined) {
-          this.currentTemps[order.id] = (range.min + range.max) / 2;
+          this.currentTemps[order.id] = (minVal + maxVal) / 2;
         }
 
         // Random thermal drift (-0.4°C to +0.4°C)
@@ -49,7 +51,7 @@ export class TemperatureSimulator {
         this.currentTemps[order.id] = newTemp;
 
         // Check breach
-        const isBreach = newTemp < range.min || newTemp > range.max;
+        const isBreach = newTemp < minVal || newTemp > maxVal;
 
         // GPS simulated movement in Germany (Berlin / Munich routes)
         const baseLat = 52.5200;

@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import bcrypt from 'bcryptjs';
-import { User, Order, AuditLog, TemperatureTelemetry, Role, CreateUserPayload } from '../types';
+import { User, Order, AuditLog, TemperatureTelemetry, Role, CreateUserPayload, Organization } from '../types';
 import { INITIAL_ORDERS, INITIAL_USERS } from '../lib/db';
 import { getSupabase, checkSupabaseStatus, verifySupabaseTables, SupabaseDetailedStatus } from './supabase';
 
@@ -93,10 +93,66 @@ const SEED_USERS: StoredUser[] = [
   },
 ];
 
+const SEED_ORGANIZATIONS: Organization[] = [
+  {
+    id: 'ORG-UKF-01',
+    name: 'Universitätsklinikum Frankfurt am Main',
+    type: 'HOSPITAL',
+    contractNumber: 'CTR-2026-UKF-HE-01',
+    addressStreet: 'Theodor-Stern-Kai 7',
+    postalCode: '60590',
+    city: 'Frankfurt am Main',
+    state: 'HE',
+    contactPhone: '+49 69 6301 5120',
+    contactEmail: 'probeneingang@kgu.de',
+    active: true,
+  },
+  {
+    id: 'ORG-SYNLAB-01',
+    name: 'Biosammlungszentrum Hessen - Synlab MVZ',
+    type: 'LABORATORY',
+    contractNumber: 'CTR-2026-SYNLAB-04',
+    addressStreet: 'Paul-Ehrlich-Straße 51',
+    postalCode: '60596',
+    city: 'Frankfurt am Main',
+    state: 'HE',
+    contactPhone: '+49 69 7000 881',
+    contactEmail: 'empfang@synlab-hessen.de',
+    active: true,
+  },
+  {
+    id: 'ORG-UKGM-01',
+    name: 'Universitätsklinikum Gießen und Marburg',
+    type: 'HOSPITAL',
+    contractNumber: 'CTR-2026-UKGM-02',
+    addressStreet: 'Rudolf-Buchheim-Straße 8',
+    postalCode: '35392',
+    city: 'Gießen',
+    state: 'HE',
+    contactPhone: '+49 641 9854 3000',
+    contactEmail: 'zentrallabor@ukgm.de',
+    active: true,
+  },
+  {
+    id: 'ORG-MEDIGO-HQ',
+    name: 'MediGo Hessen Zentrale & Leitstand',
+    type: 'CLINIC',
+    contractNumber: 'CTR-MEDIGO-INTERNAL',
+    addressStreet: 'Gustav-Stresemann-Ring 1',
+    postalCode: '65189',
+    city: 'Wiesbaden',
+    state: 'HE',
+    contactPhone: '+49 611 9900 100',
+    contactEmail: 'dispatch@medigo-hessen.de',
+    active: true,
+  },
+];
+
 interface DatabaseState {
   users: StoredUser[];
   orders: Order[];
   auditLogs: AuditLog[];
+  organizations: Organization[];
 }
 
 class DatabaseService {
@@ -104,6 +160,7 @@ class DatabaseService {
     users: [],
     orders: [],
     auditLogs: [],
+    organizations: [],
   };
 
   constructor() {
@@ -123,12 +180,14 @@ class DatabaseService {
           users: parsed.users && parsed.users.length ? parsed.users : JSON.parse(JSON.stringify(SEED_USERS)),
           orders: parsed.orders && parsed.orders.length ? parsed.orders : JSON.parse(JSON.stringify(INITIAL_ORDERS)),
           auditLogs: parsed.auditLogs || [],
+          organizations: parsed.organizations && parsed.organizations.length ? parsed.organizations : JSON.parse(JSON.stringify(SEED_ORGANIZATIONS)),
         };
       } else {
         this.state = {
           users: JSON.parse(JSON.stringify(SEED_USERS)),
           orders: JSON.parse(JSON.stringify(INITIAL_ORDERS)),
           auditLogs: [],
+          organizations: JSON.parse(JSON.stringify(SEED_ORGANIZATIONS)),
         };
         this.saveToFile();
       }
@@ -200,6 +259,13 @@ class DatabaseService {
     const user = this.state.users.find(u => u.id === id);
     if (!user) return null;
     const { passwordHash, ...sanitized } = user;
+    return sanitized;
+  }
+
+  public async getUserByEmail(email: string): Promise<User | null> {
+    const userWithHash = await this.getUserByEmailWithPassword(email);
+    if (!userWithHash) return null;
+    const { passwordHash, ...sanitized } = userWithHash;
     return sanitized;
   }
 
@@ -326,6 +392,27 @@ class DatabaseService {
     }
 
     const { passwordHash: _, ...sanitized } = newUser;
+
+    // Automatically sync facility to organizations registry if role represents a healthcare facility
+    if (newUser.role === 'CLIENT_CLINIC' || newUser.role === 'LAB_STAFF' || newUser.facilityType === 'CLINIC' || newUser.facilityType === 'LABORATORY') {
+      try {
+        await this.upsertOrganization({
+          name: newUser.organization || newUser.name,
+          type: newUser.facilityType === 'LABORATORY' || newUser.role === 'LAB_STAFF' ? 'LABORATORY' : 'CLINIC',
+          contractNumber: newUser.contractNumber,
+          addressStreet: newUser.facilityAddress || 'Hessen Region Hub',
+          postalCode: '60590',
+          city: 'Frankfurt am Main',
+          state: 'HE',
+          contactEmail: newUser.email,
+          contactPhone: newUser.phone || '+49 69 6301 0',
+          active: newUser.active,
+        });
+      } catch (e) {
+        console.warn('[Database] Auto-sync facility failed:', e);
+      }
+    }
+
     return sanitized;
   }
 

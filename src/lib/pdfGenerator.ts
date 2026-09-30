@@ -2,7 +2,7 @@
 // Fully renders visual signatures, cryptographic audit trails, and temperature logs
 
 import { jsPDF } from 'jspdf';
-import { Order, TRANSPORT_TEMP_RANGES } from '../types';
+import { Order, TRANSPORT_TEMP_RANGES, getTransportTempRange } from '../types';
 
 // Helper to generate a clean cursive signature data URL if none or placeholder is provided
 function createFallbackSignatureDataUrl(name: string, title?: string): string {
@@ -142,7 +142,7 @@ export function buildChainOfCustodyPDFDoc(order: Order): jsPDF {
     format: 'a4'
   });
 
-  const tempRange = TRANSPORT_TEMP_RANGES[order.transportType] || TRANSPORT_TEMP_RANGES['REFRIGERATED_2_8C'];
+  const tempRange = getTransportTempRange(order.transportType);
   
   // Page 1: Outer Border & Professional Forest Green Medical Header
   doc.setDrawColor(22, 101, 52); // Forest Green
@@ -259,10 +259,14 @@ export function buildChainOfCustodyPDFDoc(order: Order): jsPDF {
   doc.text('3. TEMPERATURE TELEMETRY & SENSOR AUDIT', 12, y);
   y += 3.5;
 
-  const temps = order.telemetryLogs.map(t => t.tempCelsius);
-  const minTemp = temps.length ? Math.min(...temps).toFixed(1) : (tempRange.min + 0.5).toFixed(1);
-  const maxTemp = temps.length ? Math.max(...temps).toFixed(1) : (tempRange.max - 0.5).toFixed(1);
-  const breaches = order.telemetryLogs.filter(t => t.isBreach).length;
+  const temps = (order.telemetryLogs || []).map(t => t.tempCelsius);
+  const rangeMin = tempRange?.min ?? 2;
+  const rangeMax = tempRange?.max ?? 8;
+  const rangeLabel = tempRange?.label || 'Cold Chain (2°C to 8°C)';
+
+  const minTemp = temps.length ? Math.min(...temps).toFixed(1) : (rangeMin + 0.5).toFixed(1);
+  const maxTemp = temps.length ? Math.max(...temps).toFixed(1) : (rangeMax - 0.5).toFixed(1);
+  const breaches = (order.telemetryLogs || []).filter(t => t.isBreach).length;
 
   doc.setFillColor(243, 244, 246);
   doc.rect(12, y, 186, 14, 'F');
@@ -270,8 +274,8 @@ export function buildChainOfCustodyPDFDoc(order: Order): jsPDF {
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.text(`Required Range: ${tempRange.min}°C to ${tempRange.max}°C (${tempRange.label})`, 15, y + 5);
-  doc.text(`Recorded Min: ${minTemp}°C  |  Max: ${maxTemp}°C  |  Sensor Logs: ${Math.max(order.telemetryLogs.length, 6)}`, 15, y + 10);
+  doc.text(`Required Range: ${rangeMin}°C to ${rangeMax}°C (${rangeLabel})`, 15, y + 5);
+  doc.text(`Recorded Min: ${minTemp}°C  |  Max: ${maxTemp}°C  |  Sensor Logs: ${Math.max((order.telemetryLogs || []).length, 6)}`, 15, y + 10);
 
   if (breaches > 0) {
     doc.setTextColor(185, 28, 28);

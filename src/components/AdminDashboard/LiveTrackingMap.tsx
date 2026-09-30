@@ -1,5 +1,5 @@
 import React from 'react';
-import { Order, TRANSPORT_TEMP_RANGES } from '../../types';
+import { Order, TRANSPORT_TEMP_RANGES, getTransportTempRange } from '../../types';
 import { MapPin, Truck, Navigation, Battery, CheckCircle2 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -29,7 +29,7 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
   }
 
   const latestTelemetry = currentOrder.telemetryLogs[0] || null;
-  const tempRange = TRANSPORT_TEMP_RANGES[currentOrder.transportType];
+  const tempRange = getTransportTempRange(currentOrder.transportType);
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-4 text-slate-100 shadow-xl">

@@ -4,7 +4,11 @@ export type Role = 'ADMIN' | 'DISPATCHER' | 'DRIVER' | 'ORG_STAFF' | 'PATIENT' |
 
 export type OrganizationType = 'HOSPITAL' | 'CLINIC' | 'PHARMACY' | 'CARE_HOME' | 'LABORATORY' | 'INDIVIDUAL_PATIENT';
 
-export type TransportType = 'AMBIENT_15_25C' | 'REFRIGERATED_2_8C' | 'FROZEN_MINUS_20C';
+export type TransportType = 
+  | 'AMBIENT_15_25C' 
+  | 'REFRIGERATED_2_8C' 
+  | 'FROZEN_MINUS_20C' 
+  | 'FROZEN_DRY_ICE';
 
 export type OrderStatus = 
   | 'SCHEDULED'
@@ -346,11 +350,41 @@ export interface PendingOfflineAction {
   retryCount: number;
 }
 
-export const TRANSPORT_TEMP_RANGES: Record<TransportType, { min: number; max: number; label: string; desc: string }> = {
+const BASE_TRANSPORT_TEMP_RANGES: Record<string, { min: number; max: number; label: string; desc: string }> = {
   'AMBIENT_15_25C': { min: 15.0, max: 25.0, label: 'Ambient (15°C to 25°C)', desc: 'Standard UN 3373 P650 insulated transport box' },
+  'AMBIENT': { min: 15.0, max: 25.0, label: 'Ambient (15°C to 25°C)', desc: 'Standard UN 3373 P650 insulated transport box' },
   'REFRIGERATED_2_8C': { min: 2.0, max: 8.0, label: 'Cold Chain (2°C to 8°C)', desc: 'Calibrated cooling pack with active sensor' },
-  'FROZEN_MINUS_20C': { min: -25.0, max: -15.0, label: 'Frozen (-20°C / Dry Ice)', desc: 'Dry ice container with pressure relief vent' }
+  'REFRIGERATED': { min: 2.0, max: 8.0, label: 'Cold Chain (2°C to 8°C)', desc: 'Calibrated cooling pack with active sensor' },
+  'FROZEN_MINUS_20C': { min: -25.0, max: -15.0, label: 'Frozen (-20°C / Dry Ice)', desc: 'Dry ice container with pressure relief vent' },
+  'FROZEN': { min: -25.0, max: -15.0, label: 'Frozen (-20°C / Dry Ice)', desc: 'Dry ice container with pressure relief vent' },
+  'FROZEN_DRY_ICE': { min: -80.0, max: -20.0, label: 'Frozen / Dry Ice (-20°C / -80°C)', desc: 'Dry ice container with pressure relief vent' }
 };
+
+export function getTransportTempRange(type?: string | null): { min: number; max: number; label: string; desc: string } {
+  if (type && BASE_TRANSPORT_TEMP_RANGES[type]) {
+    return BASE_TRANSPORT_TEMP_RANGES[type];
+  }
+  const normalized = (type || '').toUpperCase().trim();
+  if (normalized.includes('DRY') || normalized.includes('-80') || normalized === 'FROZEN_DRY_ICE') {
+    return BASE_TRANSPORT_TEMP_RANGES['FROZEN_DRY_ICE'];
+  }
+  if (normalized.includes('FROZEN') || normalized.includes('MINUS')) {
+    return BASE_TRANSPORT_TEMP_RANGES['FROZEN_MINUS_20C'];
+  }
+  if (normalized.includes('AMBIENT') || normalized.includes('ROOM')) {
+    return BASE_TRANSPORT_TEMP_RANGES['AMBIENT_15_25C'];
+  }
+  return BASE_TRANSPORT_TEMP_RANGES['REFRIGERATED_2_8C'];
+}
+
+export const TRANSPORT_TEMP_RANGES: Record<string, { min: number; max: number; label: string; desc: string }> = new Proxy(BASE_TRANSPORT_TEMP_RANGES, {
+  get(target, prop: string) {
+    if (prop in target) {
+      return (target as any)[prop];
+    }
+    return getTransportTempRange(prop);
+  }
+});
 
 export const GERMAN_SAMPLE_CITIES = [
   { name: 'Berlin', coords: { lat: 52.5200, lng: 13.4050 } },
