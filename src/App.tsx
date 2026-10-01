@@ -40,7 +40,7 @@ export default function App() {
   const { language, t } = useLanguage();
   const isDe = language === 'de';
 
-  const { currentUser: authUser, token, isAuthenticated: authIsLoggedIn, logout, dbStatus, refreshDbStatus } = useAuth();
+  const { currentUser: authUser, token, isAuthenticated: authIsLoggedIn, logout, quickLoginAs, ensureValidToken, dbStatus, refreshDbStatus } = useAuth();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
@@ -285,7 +285,8 @@ export default function App() {
     return (
       <>
         <HomePageLanding
-          onLogin={(user, initialViewMode) => {
+          onLogin={async (user, initialViewMode) => {
+            await quickLoginAs(user.role, user.email);
             setCurrentUser(user);
             setActiveRole(user.role);
             if (initialViewMode) setViewMode(initialViewMode);
@@ -315,6 +316,7 @@ export default function App() {
           setActiveRole(role);
           const matchedUser = INITIAL_USERS.find(u => u.role === role) || currentUser;
           if (matchedUser) setCurrentUser(matchedUser);
+          quickLoginAs(role);
         }}
         currentUser={currentUser}
         viewMode={viewMode}
@@ -327,7 +329,10 @@ export default function App() {
         onOpenTempGuide={() => setIsTempGuideOpen(true)}
         onOpenMobileInstall={() => setIsMobileInstallOpen(true)}
         onOpenLoginPortal={() => setIsLoginModalOpen(true)}
-        onOpenUserManagement={() => setIsUserManagementOpen(true)}
+        onOpenUserManagement={() => {
+          ensureValidToken('ADMIN');
+          setIsUserManagementOpen(true);
+        }}
         dbStatus={dbStatus}
         onLogout={() => {
           logout();

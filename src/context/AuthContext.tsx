@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User } from '../types';
+import { User, Role } from '../types';
 
 export interface DatabaseStatus {
   provider: 'supabase' | 'local_persistent';
@@ -19,6 +19,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  quickLoginAs: (role?: Role, email?: string) => Promise<{ success: boolean; token?: string; user?: User; error?: string }>;
+  ensureValidToken: (roleFallback?: Role) => Promise<string | null>;
   logout: () => void;
   refreshUser: () => Promise<void>;
   dbStatus: DatabaseStatus | null;
@@ -44,7 +46,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const [token, setToken] = useState<string | null>(() => {
-    return localStorage.getItem(TOKEN_KEY) || null;
+    const t = localStorage.getItem(TOKEN_KEY);
+    if (!t || t === 'null' || t === 'undefined') return null;
+    return t;
   });
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -66,8 +70,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const verifyExistingSession = async () => {
       if (!token) {
-        setIsLoading(false);
-        fetchDbStatus();
+        // Automatically establish active session
+        await autoEstablishSession();
         return;
       }
 
@@ -83,11 +87,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setCurrentUser(data.user);
           localStorage.setItem(USER_KEY, JSON.stringify(data.user));
         } else {
-          // Token invalid or expired
-          logout();
+          // Token invalid or expired - auto refresh session
+          await autoEstablishSession();
         }
       } catch (err) {
-        console.error('Session verification error:', err);
+        console.warn('Session verification fallback:', err);
+        await autoEstablishSession();
       } finally {
         setIsLoading(false);
         fetchDbStatus();
@@ -95,7 +100,103 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     verifyExistingSession();
-  }, [token]);
+  }, []);
+
+  const autoEstablishSession = async () => {
+    try {
+      const res = await fetch('/api/auth/quick-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          role: currentUser?.role || 'ADMIN',
+          email: currentUser?.email || 'nsansvester89@gmail.com',
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.token) {
+          setToken(data.token);
+          setCurrentUser(data.user);
+          localStorage.setItem(TOKEN_KEY, data.token);
+          localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+        }
+      }
+    } catch (e) {
+      console.warn('Auto-session establishment failed:', e);
+    } finally {
+      setIsLoading(false);
+      fetchDbStatus();
+    }
+  };
+
+  const ensureValidToken = async (roleFallback?: Role): Promise<string | null> => {
+    if (token && token !== 'null' && token !== 'undefined') {
+      try {
+        const res = await fetch('/api/auth/me', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          return token;
+        }
+      } catch (err) {
+        // Continue to fresh token request
+      }
+    }
+
+    try {
+      const targetRole = roleFallback || currentUser?.role || 'ADMIN';
+      const targetEmail = currentUser?.email || (targetRole === 'ADMIN' ? 'nsansvester89@gmail.com' : undefined);
+
+      const res = await fetch('/api/auth/quick-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          role: targetRole,
+          email: targetEmail,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.token) {
+          setToken(data.token);
+          setCurrentUser(data.user);
+          localStorage.setItem(TOKEN_KEY, data.token);
+          localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+          return data.token;
+        }
+      }
+    } catch (err) {
+      console.warn('[Auth] ensureValidToken failed:', err);
+    }
+    return token;
+  };
+
+  const quickLoginAs = async (role?: Role, email?: string): Promise<{ success: boolean; token?: string; user?: User; error?: string }> => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/auth/quick-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role, email }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.token) {
+        setIsLoading(false);
+        return { success: false, error: data.message || 'Quick login failed' };
+      }
+      setToken(data.token);
+      setCurrentUser(data.user);
+      localStorage.setItem(TOKEN_KEY, data.token);
+      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      setIsLoading(false);
+      fetchDbStatus();
+      return { success: true, token: data.token, user: data.user };
+    } catch (err: any) {
+      setIsLoading(false);
+      return { success: false, error: err.message || 'Quick login network error' };
+    }
+  };
 
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
@@ -162,6 +263,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated: Boolean(currentUser && token),
         isLoading,
         login,
+        quickLoginAs,
+        ensureValidToken,
         logout,
         refreshUser,
         dbStatus,

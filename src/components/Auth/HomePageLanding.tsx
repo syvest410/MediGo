@@ -21,6 +21,7 @@ import {
 import { Role, User } from '../../types';
 import { INITIAL_USERS } from '../../lib/db';
 import { useLanguage } from '../../context/LanguageContext';
+import { useAuth } from '../../context/AuthContext';
 import medigoLogoImg from '../../assets/images/medigo_logo_1785514597465.jpg';
 import medigoHeroDayImg from '../../assets/images/medigo_hero_day_1785704976788.jpg';
 import medigoHeroNightImg from '../../assets/images/medigo_hero_night_1785704992896.jpg';
@@ -41,6 +42,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
 }) => {
   const { language, toggleLanguage, t } = useLanguage();
   const isDe = language === 'de';
+  const { quickLoginAs } = useAuth();
 
   const [selectedRole, setSelectedRole] = useState<Role>('CLIENT_CLINIC');
   const [emailInput, setEmailInput] = useState('probeneingang@kgu.de');
@@ -49,18 +51,28 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
   const [contractInput, setContractInput] = useState('CTR-2026-UKF');
   const [copiedShare, setCopiedShare] = useState(false);
 
-  const handleFormLogin = (e: React.FormEvent) => {
+  const handleFormLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const user = INITIAL_USERS.find(u => u.role === selectedRole) || INITIAL_USERS[0];
     let viewMode: 'DRIVER_MOBILE' | 'DISPATCH_DASHBOARD' | 'CLIENT_PORTAL' = 'DISPATCH_DASHBOARD';
     if (selectedRole === 'CLIENT_CLINIC') viewMode = 'CLIENT_PORTAL';
     if (selectedRole === 'DRIVER') viewMode = 'DRIVER_MOBILE';
 
+    try {
+      await quickLoginAs(selectedRole, emailInput);
+    } catch (e) {
+      console.warn('Quick login error:', e);
+    }
     onLogin(user, viewMode);
   };
 
-  const handleQuickLogin = (role: Role, viewMode: 'DRIVER_MOBILE' | 'DISPATCH_DASHBOARD' | 'CLIENT_PORTAL') => {
+  const handleQuickLogin = async (role: Role, viewMode: 'DRIVER_MOBILE' | 'DISPATCH_DASHBOARD' | 'CLIENT_PORTAL') => {
     const user = INITIAL_USERS.find(u => u.role === role) || INITIAL_USERS[0];
+    try {
+      await quickLoginAs(role, user.email);
+    } catch (e) {
+      console.warn('Quick login error:', e);
+    }
     onLogin(user, viewMode);
   };
 

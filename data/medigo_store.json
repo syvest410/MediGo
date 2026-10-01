@@ -64,6 +64,20 @@
       "active": true,
       "passwordHash": "$2b$10$DM.yc5pZwN35UaU.l2wydOpNr2YrJCXt2IYWWlS.tnuE3tB8sVN0O",
       "createdAt": "2026-01-12T08:00:00.000Z"
+    },
+    {
+      "id": "USR-CLN-9099",
+      "email": "test.clinic.1790853026589@klinikum-hessen.de",
+      "name": "Dr. Test Mediziner",
+      "role": "CLIENT_CLINIC",
+      "phone": "+49 6151 1070",
+      "organization": "Klinikum Darmstadt Süd",
+      "contractNumber": "CTR-2026-DAR-640",
+      "facilityType": "CLINIC",
+      "facilityAddress": "Grafenstraße 9, 64283 Darmstadt",
+      "active": true,
+      "passwordHash": "$2b$10$FNMHiXRNnTXDuc/hJkOR6OgIqcT1zEdk1iBKAl0qwVYeCMFPUJR.a",
+      "createdAt": "2026-10-01T11:10:26.712Z"
     }
   ],
   "orders": [
@@ -516,6 +530,22 @@
   ],
   "auditLogs": [
     {
+      "id": "LOG-1790853026851-177",
+      "orderId": "SYS-USER-CREATE",
+      "previousState": null,
+      "newState": "SCHEDULED",
+      "actionDescription": "USER_CREATED: Dr. Test Mediziner (CLIENT_CLINIC)",
+      "userId": "USR-ADMIN-01",
+      "userName": "Admin (nsansvester89)",
+      "userRole": "ADMIN",
+      "deviceId": "SYS-SRV-01",
+      "gpsLatitude": 50.1109,
+      "gpsLongitude": 8.6821,
+      "offlineSynced": false,
+      "syncedAt": "2026-10-01T11:10:26.851Z",
+      "createdAt": "2026-10-01T11:10:26.851Z"
+    },
+    {
       "id": "LOG-1790756264682-994",
       "orderId": "SEC-AUTH-SUCCESS",
       "previousState": null,
@@ -770,6 +800,75 @@
       "offlineSynced": false,
       "syncedAt": "2026-09-11T18:20:48.243Z",
       "createdAt": "2026-09-11T18:20:48.243Z"
+    }
+  ],
+  "organizations": [
+    {
+      "id": "ORG-UKF-01",
+      "name": "Universitätsklinikum Frankfurt am Main",
+      "type": "HOSPITAL",
+      "contractNumber": "CTR-2026-UKF-HE-01",
+      "addressStreet": "Theodor-Stern-Kai 7",
+      "postalCode": "60590",
+      "city": "Frankfurt am Main",
+      "state": "HE",
+      "contactPhone": "+49 69 6301 5120",
+      "contactEmail": "probeneingang@kgu.de",
+      "active": true
+    },
+    {
+      "id": "ORG-SYNLAB-01",
+      "name": "Biosammlungszentrum Hessen - Synlab MVZ",
+      "type": "LABORATORY",
+      "contractNumber": "CTR-2026-SYNLAB-04",
+      "addressStreet": "Paul-Ehrlich-Straße 51",
+      "postalCode": "60596",
+      "city": "Frankfurt am Main",
+      "state": "HE",
+      "contactPhone": "+49 69 7000 881",
+      "contactEmail": "empfang@synlab-hessen.de",
+      "active": true
+    },
+    {
+      "id": "ORG-UKGM-01",
+      "name": "Universitätsklinikum Gießen und Marburg",
+      "type": "HOSPITAL",
+      "contractNumber": "CTR-2026-UKGM-02",
+      "addressStreet": "Rudolf-Buchheim-Straße 8",
+      "postalCode": "35392",
+      "city": "Gießen",
+      "state": "HE",
+      "contactPhone": "+49 641 9854 3000",
+      "contactEmail": "zentrallabor@ukgm.de",
+      "active": true
+    },
+    {
+      "id": "ORG-MEDIGO-HQ",
+      "name": "MediGo Hessen Zentrale & Leitstand",
+      "type": "CLINIC",
+      "contractNumber": "CTR-MEDIGO-INTERNAL",
+      "addressStreet": "Gustav-Stresemann-Ring 1",
+      "postalCode": "65189",
+      "city": "Wiesbaden",
+      "state": "HE",
+      "contactPhone": "+49 611 9900 100",
+      "contactEmail": "dispatch@medigo-hessen.de",
+      "active": true
+    },
+    {
+      "id": "ORG-6784",
+      "name": "Klinikum Darmstadt Süd",
+      "type": "CLINIC",
+      "contractNumber": "CTR-2026-DAR-640",
+      "addressStreet": "Grafenstraße 9, 64283 Darmstadt",
+      "postalCode": "60590",
+      "city": "Frankfurt am Main",
+      "state": "HE",
+      "contactPhone": "+49 6151 1070",
+      "contactEmail": "test.clinic.1790853026589@klinikum-hessen.de",
+      "active": true,
+      "createdAt": "2026-10-01T11:10:26.784Z",
+      "updatedAt": "2026-10-01T11:10:26.784Z"
     }
   ]
 }

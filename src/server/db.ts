@@ -204,6 +204,7 @@ class DatabaseService {
         users: JSON.parse(JSON.stringify(SEED_USERS)),
         orders: JSON.parse(JSON.stringify(INITIAL_ORDERS)),
         auditLogs: [],
+        organizations: JSON.parse(JSON.stringify(SEED_ORGANIZATIONS)),
       };
     }
   }
@@ -491,6 +492,99 @@ class DatabaseService {
     }
 
     return true;
+  }
+
+  // --- ORGANIZATION / FACILITY OPERATIONS ---
+
+  public async getAllOrganizations(): Promise<Organization[]> {
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('organizations')
+          .select('*')
+          .order('name', { ascending: true });
+
+        if (!error && data && data.length > 0) {
+          return data.map((d: any) => ({
+            id: d.id,
+            name: d.name,
+            type: d.type,
+            contractNumber: d.contract_number || d.contractNumber || undefined,
+            addressStreet: d.address_street || d.addressStreet || '',
+            postalCode: d.postal_code || d.postalCode || '',
+            city: d.city || '',
+            state: d.state || 'HE',
+            contactPhone: d.contact_phone || d.contactPhone || '',
+            contactEmail: d.contact_email || d.contactEmail || '',
+            active: d.active !== false,
+            createdAt: d.created_at,
+            updatedAt: d.updated_at,
+          }));
+        }
+      } catch (err) {
+        console.warn('[Database] Supabase fetch organizations failed, using local store:', err);
+      }
+    }
+
+    return this.state.organizations || [];
+  }
+
+  public async upsertOrganization(org: Partial<Organization> & { name: string }): Promise<Organization> {
+    const list = this.state.organizations || [];
+    const existingIndex = list.findIndex(
+      o => (org.id && o.id === org.id) || 
+           (org.contractNumber && o.contractNumber === org.contractNumber) ||
+           o.name.toLowerCase() === org.name.toLowerCase()
+    );
+
+    const fullOrg: Organization = {
+      id: existingIndex !== -1 ? list[existingIndex].id : (org.id || `ORG-${Date.now().toString().slice(-4)}`),
+      name: org.name.trim(),
+      type: org.type || 'CLINIC',
+      contractNumber: org.contractNumber?.trim() || undefined,
+      addressStreet: org.addressStreet?.trim() || 'Theodor-Stern-Kai 7',
+      postalCode: org.postalCode?.trim() || '60590',
+      city: org.city?.trim() || 'Frankfurt am Main',
+      state: org.state || 'HE',
+      contactPhone: org.contactPhone?.trim() || '+49 69 6301 0',
+      contactEmail: org.contactEmail?.trim() || 'info@medigo-partner.de',
+      active: org.active !== false,
+      createdAt: existingIndex !== -1 ? list[existingIndex].createdAt : new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (existingIndex !== -1) {
+      list[existingIndex] = fullOrg;
+    } else {
+      list.push(fullOrg);
+    }
+    this.state.organizations = list;
+    this.saveToFile();
+
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        await supabase.from('organizations').upsert({
+          id: fullOrg.id,
+          name: fullOrg.name,
+          type: fullOrg.type,
+          contract_number: fullOrg.contractNumber,
+          address_street: fullOrg.addressStreet,
+          postal_code: fullOrg.postalCode,
+          city: fullOrg.city,
+          state: fullOrg.state,
+          contact_phone: fullOrg.contactPhone,
+          contact_email: fullOrg.contactEmail,
+          active: fullOrg.active,
+          updated_at: fullOrg.updatedAt,
+        });
+      } catch (err) {
+        console.warn('[Supabase] Error upserting organization:', err);
+      }
+    }
+
+    return fullOrg;
   }
 
   // --- ORDER OPERATIONS ---

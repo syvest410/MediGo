@@ -72,7 +72,11 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
     return res.status(401).json({ message: 'Authentication required. Missing Bearer token.' });
   }
 
-  const token = authHeader.split('Bearer ')[1].trim();
+  const token = authHeader.split('Bearer ')[1]?.trim();
+  if (!token || token === 'null' || token === 'undefined') {
+    return res.status(401).json({ message: 'Authentication required. Missing Bearer token.' });
+  }
+
   const decoded = verifyToken(token);
 
   if (!decoded) {

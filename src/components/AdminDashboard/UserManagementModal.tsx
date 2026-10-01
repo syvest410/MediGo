@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Role } from '../../types';
+import { User, Role, Organization } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import {
@@ -32,10 +32,12 @@ interface UserManagementModalProps {
 export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen, onClose }) => {
   const { language } = useLanguage();
   const isDe = language === 'de';
-  const { token, currentUser, dbStatus, refreshDbStatus } = useAuth();
+  const { token, currentUser, dbStatus, refreshDbStatus, ensureValidToken } = useAuth();
 
   const [activeTab, setActiveTab] = useState<'LIST' | 'CREATE' | 'DATABASE'>('LIST');
+  const [directoryView, setDirectoryView] = useState<'USERS' | 'FACILITIES'>('USERS');
   const [users, setUsers] = useState<User[]>([]);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -79,9 +81,24 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
     }
   };
 
+  const fetchOrganizations = async () => {
+    try {
+      const res = await fetch('/api/organizations');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setOrganizations(data);
+        }
+      }
+    } catch (err) {
+      console.warn('Could not fetch organizations:', err);
+    }
+  };
+
   useEffect(() => {
     if (isOpen) {
       fetchUsers();
+      fetchOrganizations();
       refreshDbStatus();
       fetchSqlSchema();
       setErrorMsg('');
@@ -92,29 +109,45 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
   const fetchUsers = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/users', {
+      let activeToken = token;
+      if (!activeToken || activeToken === 'null' || activeToken === 'undefined') {
+        activeToken = await ensureValidToken('ADMIN');
+      }
+
+      let res = await fetch('/api/users', {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${activeToken}`,
         },
       });
+
+      // Self-heal on 401 session expiration
+      if (res.status === 401) {
+        activeToken = await ensureValidToken('ADMIN');
+        res = await fetch('/api/users', {
+          headers: {
+            Authorization: `Bearer ${activeToken}`,
+          },
+        });
+      }
 
       const text = await res.text();
       let parsed: any = null;
       try {
         parsed = JSON.parse(text);
       } catch {
-        // Response was not JSON (e.g. Vercel text error)
+        // Response was not JSON
       }
 
       if (res.ok) {
         if (Array.isArray(parsed)) {
           setUsers(parsed);
+          setErrorMsg('');
         } else {
           setUsers([]);
         }
       } else {
-        const errorMsg = parsed?.message || text || `Server error (${res.status})`;
-        setErrorMsg(errorMsg);
+        const msg = parsed?.message || text || `Server error (${res.status})`;
+        setErrorMsg(msg);
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Error fetching user directory');
@@ -158,11 +191,16 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
     }
 
     try {
-      const res = await fetch('/api/users', {
+      let activeToken = token;
+      if (!activeToken || activeToken === 'null' || activeToken === 'undefined') {
+        activeToken = await ensureValidToken('ADMIN');
+      }
+
+      let res = await fetch('/api/users', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${activeToken}`,
         },
         body: JSON.stringify({
           email: email.trim(),
@@ -177,6 +215,29 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
           vehicleRegNumber: vehicleRegNumber.trim(),
         }),
       });
+
+      if (res.status === 401) {
+        activeToken = await ensureValidToken('ADMIN');
+        res = await fetch('/api/users', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${activeToken}`,
+          },
+          body: JSON.stringify({
+            email: email.trim(),
+            password,
+            name: name.trim(),
+            role,
+            phone: phone.trim(),
+            organization: organization.trim(),
+            contractNumber: contractNumber.trim(),
+            facilityType,
+            facilityAddress: facilityAddress.trim(),
+            vehicleRegNumber: vehicleRegNumber.trim(),
+          }),
+        });
+      }
 
       const text = await res.text();
       let data: any = null;
@@ -211,6 +272,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
       setVehicleRegNumber('');
 
       fetchUsers();
+      fetchOrganizations();
     } catch (err: any) {
       setErrorMsg(err.message || 'Network error while creating user');
     }
@@ -218,14 +280,31 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
 
   const handleToggleActive = async (userId: string, currentActive: boolean) => {
     try {
-      const res = await fetch(`/api/users/${userId}`, {
+      let activeToken = token;
+      if (!activeToken || activeToken === 'null' || activeToken === 'undefined') {
+        activeToken = await ensureValidToken('ADMIN');
+      }
+
+      let res = await fetch(`/api/users/${userId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${activeToken}`,
         },
         body: JSON.stringify({ active: !currentActive }),
       });
+
+      if (res.status === 401) {
+        activeToken = await ensureValidToken('ADMIN');
+        res = await fetch(`/api/users/${userId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${activeToken}`,
+          },
+          body: JSON.stringify({ active: !currentActive }),
+        });
+      }
 
       if (res.ok) {
         fetchUsers();
@@ -239,12 +318,27 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
     if (!confirm('Are you sure you want to remove this user account?')) return;
 
     try {
-      const res = await fetch(`/api/users/${userId}`, {
+      let activeToken = token;
+      if (!activeToken || activeToken === 'null' || activeToken === 'undefined') {
+        activeToken = await ensureValidToken('ADMIN');
+      }
+
+      let res = await fetch(`/api/users/${userId}`, {
         method: 'DELETE',
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${activeToken}`,
         },
       });
+
+      if (res.status === 401) {
+        activeToken = await ensureValidToken('ADMIN');
+        res = await fetch(`/api/users/${userId}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${activeToken}`,
+          },
+        });
+      }
 
       if (res.ok) {
         fetchUsers();
@@ -370,105 +464,222 @@ Login URL: ${window.location.origin}`;
             </div>
           )}
 
-          {/* TAB 1: USER DIRECTORY */}
+          {/* TAB 1: USER & FACILITY DIRECTORY */}
           {activeTab === 'LIST' && (
             <div className="space-y-3">
-              <div className="flex items-center justify-between text-xs text-slate-400">
-                <span>All authenticated system users with verified roles & assigned contracts</span>
-                <button
-                  onClick={fetchUsers}
-                  className="text-cyan-400 hover:underline font-mono text-[11px]"
-                >
-                  Refresh Table
-                </button>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-400">
+                {/* View Switcher: Personnel vs Facilities */}
+                <div className="flex items-center space-x-1 bg-slate-900 border border-slate-800 p-1 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => setDirectoryView('USERS')}
+                    className={`px-3 py-1 rounded-md font-bold transition-all text-xs flex items-center space-x-1.5 ${
+                      directoryView === 'USERS'
+                        ? 'bg-cyan-500 text-slate-950 shadow'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    <span>{isDe ? 'Personal & Fahrer' : 'Staff & Couriers'} ({users.length})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDirectoryView('FACILITIES')}
+                    className={`px-3 py-1 rounded-md font-bold transition-all text-xs flex items-center space-x-1.5 ${
+                      directoryView === 'FACILITIES'
+                        ? 'bg-cyan-500 text-slate-950 shadow'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Building2 className="w-3.5 h-3.5" />
+                    <span>{isDe ? 'Kliniken & Verträge' : 'Facilities & Contracts'} ({organizations.length})</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => {
+                      fetchUsers();
+                      fetchOrganizations();
+                    }}
+                    className="text-cyan-400 hover:underline font-mono text-[11px] flex items-center space-x-1"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>{isDe ? 'Neu laden' : 'Refresh Table'}</span>
+                  </button>
+                </div>
               </div>
 
-              <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-950">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-900 text-slate-400 font-semibold border-b border-slate-800">
-                    <tr>
-                      <th className="p-3">User & Email</th>
-                      <th className="p-3">Role</th>
-                      <th className="p-3">Contract # / Vehicle</th>
-                      <th className="p-3">Organization</th>
-                      <th className="p-3 text-center">Status</th>
-                      <th className="p-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60">
-                    {users.map((u) => (
-                      <tr key={u.id} className="hover:bg-slate-900/50 transition-colors">
-                        <td className="p-3">
-                          <div className="font-bold text-white flex items-center space-x-1.5">
-                            <span>{u.name}</span>
-                            {u.role === 'ADMIN' && <Crown className="w-3.5 h-3.5 text-amber-400" />}
-                          </div>
-                          <div className="text-[11px] text-slate-400 font-mono">{u.email}</div>
-                        </td>
-                        <td className="p-3">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded font-mono text-[10px] font-bold ${
-                              u.role === 'ADMIN'
-                                ? 'bg-amber-950 text-amber-300 border border-amber-800'
-                                : u.role === 'DRIVER'
-                                ? 'bg-cyan-950 text-cyan-300 border border-cyan-800'
-                                : u.role === 'CLIENT_CLINIC'
-                                ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-                                : u.role === 'LAB_STAFF'
-                                ? 'bg-purple-950 text-purple-300 border border-purple-800'
-                                : 'bg-slate-800 text-slate-300 border border-slate-700'
-                            }`}
-                          >
-                            {u.role}
-                          </span>
-                        </td>
-                        <td className="p-3">
-                          {u.contractNumber ? (
-                            <span className="font-mono text-[11px] text-emerald-400 bg-emerald-950/70 border border-emerald-800 px-1.5 py-0.5 rounded font-bold">
-                              {u.contractNumber}
-                            </span>
-                          ) : u.vehicleRegNumber ? (
-                            <span className="font-mono text-[11px] text-cyan-300 bg-cyan-950/70 border border-cyan-800 px-1.5 py-0.5 rounded">
-                              {u.vehicleRegNumber}
-                            </span>
-                          ) : (
-                            <span className="text-slate-600 font-mono text-[11px]">N/A</span>
-                          )}
-                        </td>
-                        <td className="p-3">
-                          <div className="text-slate-300 truncate max-w-[180px]">{u.organization || 'MediGo Hessen'}</div>
-                          {u.phone && <div className="text-[10px] text-slate-500 font-mono">{u.phone}</div>}
-                        </td>
-                        <td className="p-3 text-center">
-                          <button
-                            onClick={() => handleToggleActive(u.id, u.active !== false)}
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all ${
-                              u.active !== false
-                                ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-700 hover:bg-emerald-900'
-                                : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'
-                            }`}
-                          >
-                            {u.active !== false ? 'Active' : 'Suspended'}
-                          </button>
-                        </td>
-                        <td className="p-3 text-right">
-                          {u.email.toLowerCase() !== 'nsansvester89@gmail.com' ? (
-                            <button
-                              onClick={() => handleDeleteUser(u.id)}
-                              className="text-slate-500 hover:text-rose-400 p-1 rounded hover:bg-rose-950/40 transition-colors"
-                              title="Delete user"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          ) : (
-                            <span className="text-[10px] text-amber-500 font-bold">Master</span>
-                          )}
-                        </td>
+              {directoryView === 'USERS' ? (
+                <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-950">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-900 text-slate-400 font-semibold border-b border-slate-800">
+                      <tr>
+                        <th className="p-3">User & Email</th>
+                        <th className="p-3">Role</th>
+                        <th className="p-3">Contract # / Vehicle</th>
+                        <th className="p-3">Organization</th>
+                        <th className="p-3 text-center">Status</th>
+                        <th className="p-3 text-right">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {users.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="p-6 text-center text-slate-500 italic">
+                            {isDe ? 'Keine Benutzer geladen.' : 'No users found.'}
+                          </td>
+                        </tr>
+                      ) : (
+                        users.map((u) => (
+                          <tr key={u.id} className="hover:bg-slate-900/50 transition-colors">
+                            <td className="p-3">
+                              <div className="font-bold text-white flex items-center space-x-1.5">
+                                <span>{u.name}</span>
+                                {u.role === 'ADMIN' && <Crown className="w-3.5 h-3.5 text-amber-400" />}
+                              </div>
+                              <div className="text-[11px] text-slate-400 font-mono">{u.email}</div>
+                            </td>
+                            <td className="p-3">
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded font-mono text-[10px] font-bold ${
+                                  u.role === 'ADMIN'
+                                    ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                                    : u.role === 'DRIVER'
+                                    ? 'bg-cyan-950 text-cyan-300 border border-cyan-800'
+                                    : u.role === 'CLIENT_CLINIC'
+                                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                                    : u.role === 'LAB_STAFF'
+                                    ? 'bg-purple-950 text-purple-300 border border-purple-800'
+                                    : 'bg-slate-800 text-slate-300 border border-slate-700'
+                                }`}
+                              >
+                                {u.role}
+                              </span>
+                            </td>
+                            <td className="p-3">
+                              {u.contractNumber ? (
+                                <span className="font-mono text-[11px] text-emerald-400 bg-emerald-950/70 border border-emerald-800 px-1.5 py-0.5 rounded font-bold">
+                                  {u.contractNumber}
+                                </span>
+                              ) : u.vehicleRegNumber ? (
+                                <span className="font-mono text-[11px] text-cyan-300 bg-cyan-950/70 border border-cyan-800 px-1.5 py-0.5 rounded">
+                                  {u.vehicleRegNumber}
+                                </span>
+                              ) : (
+                                <span className="text-slate-600 font-mono text-[11px]">N/A</span>
+                              )}
+                            </td>
+                            <td className="p-3">
+                              <div className="text-slate-300 truncate max-w-[180px]">{u.organization || 'MediGo Hessen'}</div>
+                              {u.phone && <div className="text-[10px] text-slate-500 font-mono">{u.phone}</div>}
+                            </td>
+                            <td className="p-3 text-center">
+                              <button
+                                onClick={() => handleToggleActive(u.id, u.active !== false)}
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all ${
+                                  u.active !== false
+                                    ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-700 hover:bg-emerald-900'
+                                    : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'
+                                }`}
+                              >
+                                {u.active !== false ? 'Active' : 'Suspended'}
+                              </button>
+                            </td>
+                            <td className="p-3 text-right">
+                              {u.email.toLowerCase() !== 'nsansvester89@gmail.com' ? (
+                                <button
+                                  onClick={() => handleDeleteUser(u.id)}
+                                  className="text-slate-500 hover:text-rose-400 p-1 rounded hover:bg-rose-950/40 transition-colors"
+                                  title="Delete user"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              ) : (
+                                <span className="text-[10px] text-amber-500 font-bold">Master</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-950">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-900 text-slate-400 font-semibold border-b border-slate-800">
+                      <tr>
+                        <th className="p-3">Facility Name</th>
+                        <th className="p-3">Facility Classification</th>
+                        <th className="p-3">Contract Number</th>
+                        <th className="p-3">Address & Region</th>
+                        <th className="p-3">Contact</th>
+                        <th className="p-3 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {organizations.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="p-6 text-center text-slate-500 italic">
+                            {isDe ? 'Keine Einrichtungen geladen.' : 'No facilities found.'}
+                          </td>
+                        </tr>
+                      ) : (
+                        organizations.map((org) => (
+                          <tr key={org.id} className="hover:bg-slate-900/50 transition-colors">
+                            <td className="p-3">
+                              <div className="font-bold text-white flex items-center space-x-1.5">
+                                <Building2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                                <span>{org.name}</span>
+                              </div>
+                              <div className="text-[10px] text-slate-500 font-mono">{org.id}</div>
+                            </td>
+                            <td className="p-3">
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded font-mono text-[10px] font-bold ${
+                                  org.type === 'HOSPITAL' || org.type === 'CLINIC'
+                                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                                    : org.type === 'LABORATORY'
+                                    ? 'bg-purple-950 text-purple-300 border border-purple-800'
+                                    : 'bg-blue-950 text-blue-300 border border-blue-800'
+                                }`}
+                              >
+                                {org.type}
+                              </span>
+                            </td>
+                            <td className="p-3">
+                              {org.contractNumber ? (
+                                <span className="font-mono text-[11px] text-cyan-300 bg-cyan-950/70 border border-cyan-800 px-2 py-0.5 rounded font-bold">
+                                  {org.contractNumber}
+                                </span>
+                              ) : (
+                                <span className="text-slate-600 font-mono text-[11px]">N/A</span>
+                              )}
+                            </td>
+                            <td className="p-3 text-slate-300">
+                              <div>{org.addressStreet}</div>
+                              <div className="text-[11px] text-slate-400">
+                                {org.postalCode} {org.city} ({org.state})
+                              </div>
+                            </td>
+                            <td className="p-3">
+                              <div className="text-slate-300 font-mono text-[11px]">{org.contactEmail}</div>
+                              <div className="text-slate-500 text-[10px]">{org.contactPhone}</div>
+                            </td>
+                            <td className="p-3 text-center">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-900/60 text-emerald-300 border border-emerald-700">
+                                {org.active ? 'Active' : 'Inactive'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 

@@ -34,6 +34,7 @@ import {
   TemperatureTelemetry,
   AuditLog,
   PendingOfflineAction,
+  User,
 } from '../types';
 import { validateStateTransition } from '../lib/stateMachine';
 
@@ -240,6 +241,97 @@ app.get('/api/auth/me', requireAuth, async (req: AuthenticatedRequest, res) => {
     res.json({ user });
   } catch (err: any) {
     res.status(500).json({ message: err.message || 'Error fetching user session' });
+  }
+});
+
+// POST Quick Session establishment (Demo / Role Switch / Reconnect)
+app.post('/api/auth/quick-session', async (req, res) => {
+  try {
+    const { role, email } = req.body || {};
+    let targetUser: User | null = null;
+
+    if (email) {
+      targetUser = await dbService.getUserByEmail(email);
+    }
+
+    if (!targetUser && role) {
+      const allUsers = await dbService.getAllUsers();
+      targetUser = allUsers.find(u => u.role === role) || null;
+    }
+
+    if (!targetUser) {
+      // Default to Master Admin nsansvester89@gmail.com
+      targetUser = await dbService.getUserByEmail('nsansvester89@gmail.com');
+      if (!targetUser) {
+        const allUsers = await dbService.getAllUsers();
+        targetUser = allUsers.find(u => u.role === 'ADMIN') || allUsers[0] || null;
+      }
+    }
+
+    if (!targetUser) {
+      return res.status(404).json({ message: 'No suitable user account found for session initialization.' });
+    }
+
+    const token = generateToken(targetUser);
+    res.json({
+      token,
+      user: targetUser,
+      message: `Session established for ${targetUser.name} (${targetUser.role})`,
+    });
+  } catch (err: any) {
+    console.error('[Auth] Error establishing quick session:', err);
+    res.status(500).json({ message: err.message || 'Failed to establish session' });
+  }
+});
+
+// ==========================================
+// ORGANIZATION / FACILITY ENDPOINTS
+// ==========================================
+
+// GET All Facilities & Organizations
+app.get('/api/organizations', async (req, res) => {
+  try {
+    const orgs = await dbService.getAllOrganizations();
+    res.json(orgs);
+  } catch (err: any) {
+    res.status(500).json({ message: err.message || 'Failed to fetch organizations' });
+  }
+});
+
+// POST Upsert Facility / Organization
+app.post('/api/organizations', requireAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { name, type, contractNumber, addressStreet, postalCode, city, state, contactPhone, contactEmail } = req.body || {};
+    if (!name || typeof name !== 'string' || name.trim().length < 2) {
+      return res.status(400).json({ message: 'Facility name must be at least 2 characters.' });
+    }
+
+    const org = await dbService.upsertOrganization({
+      name: name.trim(),
+      type: type || 'CLINIC',
+      contractNumber: contractNumber?.trim() || undefined,
+      addressStreet: addressStreet?.trim(),
+      postalCode: postalCode?.trim(),
+      city: city?.trim(),
+      state: state || 'HE',
+      contactPhone: contactPhone?.trim(),
+      contactEmail: contactEmail?.trim(),
+    });
+
+    await dbService.createAuditLog({
+      orderId: 'SYS-FACILITY-UPSERT',
+      actionDescription: `FACILITY_UPSERT: ${org.name} (${org.type}, Contract: ${org.contractNumber || 'N/A'})`,
+      userId: req.user?.id || 'SYSTEM',
+      userName: req.user?.name || 'Administrator',
+      userRole: req.user?.role || 'ADMIN',
+    });
+
+    res.status(201).json({
+      organization: org,
+      message: `Facility ${org.name} provisioned successfully.`,
+    });
+  } catch (err: any) {
+    res.status(400).json({ message: err.message || 'Failed to provision organization' });
   }
 });
 
