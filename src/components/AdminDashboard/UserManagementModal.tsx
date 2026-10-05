@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { User, Role, Organization } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { apiFetch } from '../../lib/apiFetch';
 import {
   Users,
   UserPlus,
@@ -32,7 +33,7 @@ interface UserManagementModalProps {
 export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen, onClose }) => {
   const { language } = useLanguage();
   const isDe = language === 'de';
-  const { token, currentUser, dbStatus, refreshDbStatus, ensureValidToken } = useAuth();
+  const { token, currentUser, dbStatus, refreshDbStatus } = useAuth();
 
   const [activeTab, setActiveTab] = useState<'LIST' | 'CREATE' | 'DATABASE'>('LIST');
   const [directoryView, setDirectoryView] = useState<'USERS' | 'FACILITIES'>('USERS');
@@ -71,7 +72,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
 
   const fetchSqlSchema = async () => {
     try {
-      const res = await fetch('/api/db/schema-sql');
+      const res = await apiFetch('/api/db/schema-sql');
       if (res.ok) {
         const text = await res.text();
         setSqlCode(text);
@@ -83,7 +84,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
 
   const fetchOrganizations = async () => {
     try {
-      const res = await fetch('/api/organizations');
+      const res = await apiFetch('/api/organizations');
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -109,26 +110,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
   const fetchUsers = async () => {
     setIsLoading(true);
     try {
-      let activeToken = token;
-      if (!activeToken || activeToken === 'null' || activeToken === 'undefined') {
-        activeToken = await ensureValidToken('ADMIN');
-      }
-
-      let res = await fetch('/api/users', {
-        headers: {
-          Authorization: `Bearer ${activeToken}`,
-        },
-      });
-
-      // Self-heal on 401 session expiration
-      if (res.status === 401) {
-        activeToken = await ensureValidToken('ADMIN');
-        res = await fetch('/api/users', {
-          headers: {
-            Authorization: `Bearer ${activeToken}`,
-          },
-        });
-      }
+      const res = await apiFetch('/api/users');
 
       const text = await res.text();
       let parsed: any = null;
@@ -191,16 +173,15 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
     }
 
     try {
-      let activeToken = token;
-      if (!activeToken || activeToken === 'null' || activeToken === 'undefined') {
-        activeToken = await ensureValidToken('ADMIN');
+      if (!token) {
+        setErrorMsg('Authentication token missing. Please sign in again.');
+        return;
       }
 
-      let res = await fetch('/api/users', {
+      const res = await apiFetch('/api/users', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${activeToken}`,
         },
         body: JSON.stringify({
           email: email.trim(),
@@ -215,29 +196,6 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
           vehicleRegNumber: vehicleRegNumber.trim(),
         }),
       });
-
-      if (res.status === 401) {
-        activeToken = await ensureValidToken('ADMIN');
-        res = await fetch('/api/users', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${activeToken}`,
-          },
-          body: JSON.stringify({
-            email: email.trim(),
-            password,
-            name: name.trim(),
-            role,
-            phone: phone.trim(),
-            organization: organization.trim(),
-            contractNumber: contractNumber.trim(),
-            facilityType,
-            facilityAddress: facilityAddress.trim(),
-            vehicleRegNumber: vehicleRegNumber.trim(),
-          }),
-        });
-      }
 
       const text = await res.text();
       let data: any = null;
@@ -280,31 +238,13 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
 
   const handleToggleActive = async (userId: string, currentActive: boolean) => {
     try {
-      let activeToken = token;
-      if (!activeToken || activeToken === 'null' || activeToken === 'undefined') {
-        activeToken = await ensureValidToken('ADMIN');
-      }
-
-      let res = await fetch(`/api/users/${userId}`, {
+      const res = await apiFetch(`/api/users/${userId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${activeToken}`,
         },
         body: JSON.stringify({ active: !currentActive }),
       });
-
-      if (res.status === 401) {
-        activeToken = await ensureValidToken('ADMIN');
-        res = await fetch(`/api/users/${userId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${activeToken}`,
-          },
-          body: JSON.stringify({ active: !currentActive }),
-        });
-      }
 
       if (res.ok) {
         fetchUsers();
@@ -318,27 +258,9 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
     if (!confirm('Are you sure you want to remove this user account?')) return;
 
     try {
-      let activeToken = token;
-      if (!activeToken || activeToken === 'null' || activeToken === 'undefined') {
-        activeToken = await ensureValidToken('ADMIN');
-      }
-
-      let res = await fetch(`/api/users/${userId}`, {
+      const res = await apiFetch(`/api/users/${userId}`, {
         method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${activeToken}`,
-        },
       });
-
-      if (res.status === 401) {
-        activeToken = await ensureValidToken('ADMIN');
-        res = await fetch(`/api/users/${userId}`, {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${activeToken}`,
-          },
-        });
-      }
 
       if (res.ok) {
         fetchUsers();
@@ -820,7 +742,7 @@ Login URL: ${window.location.origin}`;
                       type="text"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Minimum 6 characters (e.g. ClinicPass2026!)"
+                      placeholder="Minimum 8 characters (letters, numbers, symbols)"
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-cyan-500"
                       required
                     />

@@ -202,8 +202,8 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </button>
 
-            {/* Database Status Indicator */}
-            {dbStatus && (
+            {/* Database Status Indicator (ADMIN / DISPATCHER Only) */}
+            {dbStatus && (currentUser?.role === 'ADMIN' || currentUser?.role === 'DISPATCHER') && (
               <button
                 onClick={onOpenUserManagement}
                 className={`hidden xl:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border text-xs min-h-[36px] font-mono transition-all ${

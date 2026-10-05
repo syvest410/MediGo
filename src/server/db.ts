@@ -1,31 +1,37 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
-import { User, Order, AuditLog, TemperatureTelemetry, Role, CreateUserPayload, Organization } from '../types';
+import { User, Order, AuditLog, TemperatureTelemetry, Role, CreateUserPayload, Organization, LoginAttemptRecord, RefreshTokenRecord } from '../types';
 import { INITIAL_ORDERS, INITIAL_USERS } from '../lib/db';
 import { getSupabase, checkSupabaseStatus, verifySupabaseTables, SupabaseDetailedStatus } from './supabase';
 
 export interface StoredUser extends User {
   passwordHash: string;
+  mustChangePassword?: boolean;
+  tokenVersion?: number;
 }
 
 const isVercel = Boolean(process.env.VERCEL);
 const DATA_DIR = isVercel ? path.join('/tmp', 'data') : path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'medigo_store.json');
 
-// Default initial passwords for seed accounts
-// Hash for "AdminPass2026!"
-const DEFAULT_ADMIN_HASH = bcrypt.hashSync('AdminPass2026!', 10);
-// Hash for "Dispatch2026!"
-const DEFAULT_DISPATCH_HASH = bcrypt.hashSync('Dispatch2026!', 10);
-// Hash for "DriverPass2026!"
-const DEFAULT_DRIVER_HASH = bcrypt.hashSync('DriverPass2026!', 10);
-// Hash for "ClinicPass2026!"
-const DEFAULT_CLINIC_HASH = bcrypt.hashSync('ClinicPass2026!', 10);
-// Hash for "LabPass2026!"
-const DEFAULT_LAB_HASH = bcrypt.hashSync('LabPass2026!', 10);
+interface SeedAccountConfig {
+  id: string;
+  email: string;
+  name: string;
+  role: Role;
+  phone?: string;
+  organization?: string;
+  facilityType?: 'HQ' | 'COURIER' | 'CLINIC' | 'LABORATORY';
+  contractNumber?: string;
+  facilityAddress?: string;
+  vehicleRegNumber?: string;
+  envVar: string;
+  createdAt: string;
+}
 
-const SEED_USERS: StoredUser[] = [
+const SEED_CONFIGS: SeedAccountConfig[] = [
   {
     id: 'USR-ADMIN-01',
     email: 'nsansvester89@gmail.com',
@@ -34,8 +40,7 @@ const SEED_USERS: StoredUser[] = [
     phone: '+49 170 0000000',
     organization: 'BioDispatch / MediGo Zentrale',
     facilityType: 'HQ',
-    active: true,
-    passwordHash: DEFAULT_ADMIN_HASH,
+    envVar: 'SEED_ADMIN_PASSWORD',
     createdAt: new Date('2026-01-01T08:00:00Z').toISOString(),
   },
   {
@@ -46,8 +51,7 @@ const SEED_USERS: StoredUser[] = [
     phone: '+49 611 9882 100',
     organization: 'MediGo Hauptstandort & Dispatch Zentrale (Wiesbaden)',
     facilityType: 'HQ',
-    active: true,
-    passwordHash: DEFAULT_DISPATCH_HASH,
+    envVar: 'SEED_DISPATCHER_PASSWORD',
     createdAt: new Date('2026-01-01T08:00:00Z').toISOString(),
   },
   {
@@ -59,8 +63,7 @@ const SEED_USERS: StoredUser[] = [
     organization: 'MediGo Wiesbaden Fleet & Hessen Express Logistics',
     vehicleRegNumber: 'F-MG 7741 (Thermo Van)',
     facilityType: 'COURIER',
-    active: true,
-    passwordHash: DEFAULT_DRIVER_HASH,
+    envVar: 'SEED_DRIVER_PASSWORD',
     createdAt: new Date('2026-01-05T08:00:00Z').toISOString(),
   },
   {
@@ -73,8 +76,7 @@ const SEED_USERS: StoredUser[] = [
     contractNumber: 'CTR-2026-UKF-HE-01',
     facilityType: 'CLINIC',
     facilityAddress: 'Theodor-Stern-Kai 7, 60590 Frankfurt am Main, Hessen',
-    active: true,
-    passwordHash: DEFAULT_CLINIC_HASH,
+    envVar: 'SEED_CLINIC_PASSWORD',
     createdAt: new Date('2026-01-10T08:00:00Z').toISOString(),
   },
   {
@@ -87,11 +89,62 @@ const SEED_USERS: StoredUser[] = [
     contractNumber: 'CTR-2026-SYNLAB-04',
     facilityType: 'LABORATORY',
     facilityAddress: 'Paul-Ehrlich-Straße 51, 60596 Frankfurt am Main',
-    active: true,
-    passwordHash: DEFAULT_LAB_HASH,
+    envVar: 'SEED_LAB_PASSWORD',
     createdAt: new Date('2026-01-12T08:00:00Z').toISOString(),
   },
 ];
+
+/**
+ * Generates initial seed accounts without storing hardcoded password literals in source.
+ * In production: accounts without env passwords are not created.
+ * In development/test: secure random 20-character passwords are generated, logged once, and never persisted plaintext.
+ */
+export function generateSeedUsers(): StoredUser[] {
+  const isProd = process.env.NODE_ENV === 'production';
+  const seeds: StoredUser[] = [];
+
+  for (const cfg of SEED_CONFIGS) {
+    const envPassword = process.env[cfg.envVar];
+    let passwordPlaintext: string | null = null;
+
+    if (envPassword && envPassword.trim()) {
+      passwordPlaintext = envPassword.trim();
+    } else if (isProd) {
+      console.warn(`[Security Notice] Seed account for ${cfg.email} was omitted in production because ${cfg.envVar} is not set.`);
+      continue;
+    } else {
+      // In development/test, generate random 20-char password and print once
+      const generated = crypto.randomBytes(15).toString('base64url').slice(0, 20);
+      console.log(`[SECURITY SEED] Generated random initial password for ${cfg.email}: ${generated}`);
+      passwordPlaintext = generated;
+    }
+
+    if (passwordPlaintext) {
+      const salt = bcrypt.genSaltSync(12);
+      const passwordHash = bcrypt.hashSync(passwordPlaintext, salt);
+
+      seeds.push({
+        id: cfg.id,
+        email: cfg.email,
+        name: cfg.name,
+        role: cfg.role,
+        phone: cfg.phone,
+        organization: cfg.organization,
+        contractNumber: cfg.contractNumber,
+        facilityType: cfg.facilityType,
+        facilityAddress: cfg.facilityAddress,
+        vehicleRegNumber: cfg.vehicleRegNumber,
+        active: true,
+        mustChangePassword: true,
+        tokenVersion: 0,
+        passwordHash,
+        createdAt: cfg.createdAt,
+      });
+    }
+  }
+
+  return seeds;
+}
 
 const SEED_ORGANIZATIONS: Organization[] = [
   {
@@ -153,6 +206,8 @@ interface DatabaseState {
   orders: Order[];
   auditLogs: AuditLog[];
   organizations: Organization[];
+  loginAttempts: LoginAttemptRecord[];
+  refreshTokens: RefreshTokenRecord[];
 }
 
 class DatabaseService {
@@ -161,6 +216,8 @@ class DatabaseService {
     orders: [],
     auditLogs: [],
     organizations: [],
+    loginAttempts: [],
+    refreshTokens: [],
   };
 
   constructor() {
@@ -176,35 +233,43 @@ class DatabaseService {
       if (fs.existsSync(DB_FILE)) {
         const fileContent = fs.readFileSync(DB_FILE, 'utf-8');
         const parsed = JSON.parse(fileContent);
+
+        // Only seed when users table is completely empty or explicit SEED_ON_START=true
+        const shouldSeed = !parsed.users || parsed.users.length === 0 || process.env.SEED_ON_START === 'true';
+        const initialUsers = shouldSeed ? generateSeedUsers() : parsed.users;
+
         this.state = {
-          users: parsed.users && parsed.users.length ? parsed.users : JSON.parse(JSON.stringify(SEED_USERS)),
+          users: initialUsers,
           orders: parsed.orders && parsed.orders.length ? parsed.orders : JSON.parse(JSON.stringify(INITIAL_ORDERS)),
           auditLogs: parsed.auditLogs || [],
           organizations: parsed.organizations && parsed.organizations.length ? parsed.organizations : JSON.parse(JSON.stringify(SEED_ORGANIZATIONS)),
+          loginAttempts: parsed.loginAttempts || [],
+          refreshTokens: parsed.refreshTokens || [],
         };
+
+        if (shouldSeed) {
+          this.saveToFile();
+        }
       } else {
         this.state = {
-          users: JSON.parse(JSON.stringify(SEED_USERS)),
+          users: generateSeedUsers(),
           orders: JSON.parse(JSON.stringify(INITIAL_ORDERS)),
           auditLogs: [],
           organizations: JSON.parse(JSON.stringify(SEED_ORGANIZATIONS)),
+          loginAttempts: [],
+          refreshTokens: [],
         };
-        this.saveToFile();
-      }
-
-      // Ensure primary admin user always exists
-      const adminExists = this.state.users.some(u => u.email.toLowerCase() === 'nsansvester89@gmail.com');
-      if (!adminExists) {
-        this.state.users.unshift(SEED_USERS[0]);
         this.saveToFile();
       }
     } catch (err) {
       console.warn('[Database] Error loading local db file, falling back to memory store:', err);
       this.state = {
-        users: JSON.parse(JSON.stringify(SEED_USERS)),
+        users: generateSeedUsers(),
         orders: JSON.parse(JSON.stringify(INITIAL_ORDERS)),
         auditLogs: [],
         organizations: JSON.parse(JSON.stringify(SEED_ORGANIZATIONS)),
+        loginAttempts: [],
+        refreshTokens: [],
       };
     }
   }
@@ -244,6 +309,7 @@ class DatabaseService {
             facilityAddress: d.facility_address || d.facilityAddress || '',
             vehicleRegNumber: d.vehicle_reg_number || d.assigned_vehicle_reg || d.vehicleRegNumber || undefined,
             active: d.active !== undefined ? Boolean(d.active) : (d.is_active !== undefined ? Boolean(d.is_active) : true),
+            tokenVersion: d.token_version !== undefined ? Number(d.token_version) : 0,
             createdAt: d.created_at || new Date().toISOString(),
           }));
         }
@@ -253,14 +319,62 @@ class DatabaseService {
     }
 
     // Return sanitized users (without password hash)
-    return this.state.users.map(({ passwordHash, ...u }) => u);
+    return this.state.users.map(({ passwordHash, ...u }) => ({
+      ...u,
+      tokenVersion: u.tokenVersion ?? 0,
+    }));
   }
 
   public async getUserById(id: string): Promise<User | null> {
-    const user = this.state.users.find(u => u.id === id);
-    if (!user) return null;
-    const { passwordHash, ...sanitized } = user;
-    return sanitized;
+    const localUser = this.state.users.find(u => u.id === id);
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', id)
+          .single();
+
+        if (!error && data) {
+          const activeStatus = data.active !== undefined ? Boolean(data.active) : (data.is_active !== undefined ? Boolean(data.is_active) : true);
+          const vehicleReg = data.vehicle_reg_number || data.assigned_vehicle_reg || data.vehicleRegNumber || '';
+          const mustChange = data.must_change_password !== undefined
+            ? Boolean(data.must_change_password)
+            : (data.mustChangePassword !== undefined ? Boolean(data.mustChangePassword) : (localUser?.mustChangePassword ?? false));
+          const tVersion = data.token_version !== undefined
+            ? Number(data.token_version)
+            : (localUser?.tokenVersion ?? 0);
+
+          return {
+            id: data.id,
+            email: data.email,
+            name: data.name,
+            role: data.role,
+            phone: data.phone || '',
+            organization: data.organization || '',
+            organizationId: data.organization_id || undefined,
+            contractNumber: data.contract_number || data.contractNumber || undefined,
+            facilityType: data.facility_type || data.facilityType || undefined,
+            facilityAddress: data.facility_address || data.facilityAddress || '',
+            vehicleRegNumber: vehicleReg || undefined,
+            active: activeStatus,
+            mustChangePassword: mustChange,
+            tokenVersion: tVersion,
+            createdAt: data.created_at || new Date().toISOString(),
+          };
+        }
+      } catch (err) {
+        console.warn('[Database] Supabase lookup by id failed, using local store:', err);
+      }
+    }
+
+    if (!localUser) return null;
+    const { passwordHash, ...sanitized } = localUser;
+    return {
+      ...sanitized,
+      tokenVersion: localUser.tokenVersion ?? 0,
+    };
   }
 
   public async getUserByEmail(email: string): Promise<User | null> {
@@ -288,6 +402,12 @@ class DatabaseService {
           const activeStatus = data.active !== undefined ? Boolean(data.active) : (data.is_active !== undefined ? Boolean(data.is_active) : true);
           const vehicleReg = data.vehicle_reg_number || data.assigned_vehicle_reg || data.vehicleRegNumber || '';
           const finalPasswordHash = rawHash || localUser?.passwordHash || '';
+          const mustChange = data.must_change_password !== undefined
+            ? Boolean(data.must_change_password)
+            : (data.mustChangePassword !== undefined ? Boolean(data.mustChangePassword) : (localUser?.mustChangePassword ?? false));
+          const tVersion = data.token_version !== undefined
+            ? Number(data.token_version)
+            : (localUser?.tokenVersion ?? 0);
 
           return {
             id: data.id,
@@ -301,6 +421,8 @@ class DatabaseService {
             facilityAddress: data.facility_address || data.facilityAddress || '',
             vehicleRegNumber: vehicleReg || undefined,
             active: activeStatus,
+            mustChangePassword: mustChange,
+            tokenVersion: tVersion,
             createdAt: data.created_at || new Date().toISOString(),
             passwordHash: finalPasswordHash,
           };
@@ -310,7 +432,11 @@ class DatabaseService {
       }
     }
 
-    return localUser || null;
+    if (!localUser) return null;
+    return {
+      ...localUser,
+      tokenVersion: localUser.tokenVersion ?? 0,
+    };
   }
 
   public async createUser(payload: CreateUserPayload): Promise<User> {
@@ -329,7 +455,8 @@ class DatabaseService {
       }
     }
 
-    const salt = await bcrypt.genSalt(10);
+    // Work factor cost 12 everywhere
+    const salt = await bcrypt.genSalt(12);
     const passwordHash = await bcrypt.hash(payload.password, salt);
 
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
@@ -351,11 +478,14 @@ class DatabaseService {
       role: payload.role,
       phone: payload.phone?.trim() || '',
       organization: payload.organization?.trim() || '',
+      organizationId: payload.organizationId?.trim() || undefined,
       contractNumber: payload.contractNumber?.trim() || undefined,
       facilityType: payload.facilityType || (payload.role === 'CLIENT_CLINIC' ? 'CLINIC' : payload.role === 'LAB_STAFF' ? 'LABORATORY' : 'HQ'),
       facilityAddress: payload.facilityAddress?.trim() || '',
       vehicleRegNumber: payload.vehicleRegNumber?.trim() || undefined,
       active: true,
+      mustChangePassword: payload.mustChangePassword !== undefined ? payload.mustChangePassword : false,
+      tokenVersion: payload.tokenVersion ?? 0,
       passwordHash,
       createdAt: new Date().toISOString(),
     };
@@ -375,6 +505,7 @@ class DatabaseService {
           role: newUser.role,
           phone: newUser.phone,
           organization: newUser.organization,
+          organization_id: newUser.organizationId,
           contract_number: newUser.contractNumber,
           facility_type: newUser.facilityType,
           facility_address: newUser.facilityAddress,
@@ -384,6 +515,7 @@ class DatabaseService {
           is_active: newUser.active,
           password: newUser.passwordHash,
           password_hash: newUser.passwordHash,
+          token_version: newUser.tokenVersion ?? 0,
           created_at: newUser.createdAt,
         });
         console.log('[Supabase] Successfully inserted new user:', newUser.email);
@@ -417,28 +549,80 @@ class DatabaseService {
     return sanitized;
   }
 
-  public async updateUser(id: string, updates: Partial<User & { password?: string }>): Promise<User> {
-    const userIndex = this.state.users.findIndex(u => u.id === id);
+  public async updateUser(id: string, updates: Partial<User & { password?: string; passwordHash?: string }>): Promise<User> {
+    let userIndex = this.state.users.findIndex(u => u.id === id);
+    if (userIndex === -1) {
+      const supabase = getSupabase();
+      if (supabase) {
+        try {
+          const { data } = await supabase.from('users').select('*').eq('id', id).single();
+          if (data) {
+            const rawHash = data.password || data.password_hash || data.passwordHash || '';
+            this.state.users.push({
+              id: data.id,
+              email: data.email,
+              name: data.name,
+              role: data.role,
+              phone: data.phone || '',
+              organization: data.organization || '',
+              contractNumber: data.contract_number,
+              facilityType: data.facility_type,
+              facilityAddress: data.facility_address || '',
+              vehicleRegNumber: data.vehicle_reg_number,
+              active: data.active !== undefined ? Boolean(data.active) : true,
+              createdAt: data.created_at || new Date().toISOString(),
+              passwordHash: rawHash,
+            });
+            userIndex = this.state.users.length - 1;
+          }
+        } catch {
+          // ignore lookup error
+        }
+      }
+    }
+
     if (userIndex === -1) {
       throw new Error(`User with ID ${id} not found.`);
     }
 
     const user = this.state.users[userIndex];
 
+    const isPasswordChange = Boolean(updates.passwordHash || (updates.password && updates.password.trim().length >= 12));
+    const isDeactivation = updates.active === false && user.active !== false;
+    const isRoleChange = Boolean(updates.role && updates.role !== user.role);
+
     if (updates.name) user.name = updates.name.trim();
     if (updates.phone !== undefined) user.phone = updates.phone.trim();
     if (updates.organization !== undefined) user.organization = updates.organization.trim();
+    if (updates.organizationId !== undefined) user.organizationId = updates.organizationId.trim();
     if (updates.contractNumber !== undefined) user.contractNumber = updates.contractNumber.trim();
     if (updates.facilityAddress !== undefined) user.facilityAddress = updates.facilityAddress.trim();
     if (updates.vehicleRegNumber !== undefined) user.vehicleRegNumber = updates.vehicleRegNumber.trim();
     if (updates.facilityType !== undefined) user.facilityType = updates.facilityType;
+    if (updates.role !== undefined) user.role = updates.role;
     if (updates.active !== undefined) user.active = updates.active;
 
-    if (updates.password && updates.password.trim().length >= 6) {
-      user.passwordHash = await bcrypt.hash(updates.password.trim(), 10);
+    if (updates.mustChangePassword !== undefined) {
+      user.mustChangePassword = updates.mustChangePassword;
+    }
+
+    if (updates.tokenVersion !== undefined) {
+      user.tokenVersion = updates.tokenVersion;
+    } else if (isPasswordChange || isDeactivation || isRoleChange) {
+      user.tokenVersion = (user.tokenVersion ?? 0) + 1;
+    }
+
+    if (updates.passwordHash) {
+      user.passwordHash = updates.passwordHash;
+    } else if (updates.password && updates.password.trim().length >= 12) {
+      user.passwordHash = await bcrypt.hash(updates.password.trim(), 12);
     }
 
     this.saveToFile();
+
+    if (isDeactivation || isRoleChange || isPasswordChange) {
+      await this.revokeAllUserRefreshTokens(id);
+    }
 
     // Sync to Supabase
     const supabase = getSupabase();
@@ -448,15 +632,21 @@ class DatabaseService {
           name: user.name,
           phone: user.phone,
           organization: user.organization,
+          organization_id: user.organizationId,
           contract_number: user.contractNumber,
           facility_type: user.facilityType,
           facility_address: user.facilityAddress,
           vehicle_reg_number: user.vehicleRegNumber,
           assigned_vehicle_reg: user.vehicleRegNumber,
+          role: user.role,
           active: user.active,
           is_active: user.active,
+          token_version: user.tokenVersion ?? 0,
         };
-        if (updates.password) {
+        if (updates.mustChangePassword !== undefined) {
+          sbUpdates.must_change_password = updates.mustChangePassword;
+        }
+        if (updates.passwordHash || updates.password) {
           sbUpdates.password = user.passwordHash;
           sbUpdates.password_hash = user.passwordHash;
         }
@@ -467,7 +657,316 @@ class DatabaseService {
     }
 
     const { passwordHash: _, ...sanitized } = user;
-    return sanitized;
+    return {
+      ...sanitized,
+      tokenVersion: user.tokenVersion ?? 0,
+    };
+  }
+
+  public async incrementTokenVersion(userId: string): Promise<number> {
+    let newVersion = 1;
+    const userIndex = this.state.users.findIndex(u => u.id === userId);
+    if (userIndex !== -1) {
+      const current = this.state.users[userIndex].tokenVersion ?? 0;
+      newVersion = current + 1;
+      this.state.users[userIndex].tokenVersion = newVersion;
+      this.saveToFile();
+    }
+
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        const { data } = await supabase
+          .from('users')
+          .select('token_version')
+          .eq('id', userId)
+          .single();
+        const currentSb = data?.token_version !== undefined ? Number(data.token_version) : 0;
+        newVersion = Math.max(newVersion, currentSb + 1);
+        await supabase
+          .from('users')
+          .update({ token_version: newVersion })
+          .eq('id', userId);
+      } catch (err) {
+        console.warn('[Database] Supabase increment token_version failed:', err);
+      }
+    }
+
+    return newVersion;
+  }
+
+  // ==========================================
+  // PERSISTENT BRUTE-FORCE RATE LIMIT STORAGE
+  // ==========================================
+
+  public async getLoginAttempt(key: string): Promise<LoginAttemptRecord | null> {
+    const normalizedKey = key.toLowerCase().trim();
+    if (!this.state.loginAttempts) {
+      this.state.loginAttempts = [];
+    }
+    const localRecord = this.state.loginAttempts.find(r => r.key === normalizedKey);
+
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('login_attempts')
+          .select('*')
+          .eq('key', normalizedKey)
+          .single();
+
+        if (!error && data) {
+          return {
+            id: data.id,
+            key: data.key,
+            type: data.type as 'EMAIL' | 'IP',
+            identifier: data.identifier,
+            attempts: data.attempts,
+            firstAttemptAt: data.first_attempt_at,
+            lockedUntil: data.locked_until || null,
+            lockoutDurationMinutes: data.lockout_duration_minutes || 0,
+            updatedAt: data.updated_at,
+          };
+        }
+      } catch (err) {
+        console.warn('[Database] Supabase getLoginAttempt failed, using local store:', err);
+      }
+    }
+
+    return localRecord ? { ...localRecord } : null;
+  }
+
+  public async upsertLoginAttempt(record: LoginAttemptRecord): Promise<void> {
+    const normalizedKey = record.key.toLowerCase().trim();
+    if (!this.state.loginAttempts) {
+      this.state.loginAttempts = [];
+    }
+    const index = this.state.loginAttempts.findIndex(r => r.key === normalizedKey);
+    const updatedRecord: LoginAttemptRecord = {
+      ...record,
+      key: normalizedKey,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (index >= 0) {
+      this.state.loginAttempts[index] = updatedRecord;
+    } else {
+      this.state.loginAttempts.push(updatedRecord);
+    }
+    this.saveToFile();
+
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        await supabase.from('login_attempts').upsert({
+          id: updatedRecord.id,
+          key: updatedRecord.key,
+          type: updatedRecord.type,
+          identifier: updatedRecord.identifier,
+          attempts: updatedRecord.attempts,
+          first_attempt_at: updatedRecord.firstAttemptAt,
+          locked_until: updatedRecord.lockedUntil || null,
+          lockout_duration_minutes: updatedRecord.lockoutDurationMinutes,
+          updated_at: updatedRecord.updatedAt,
+        }, { onConflict: 'key' });
+      } catch (err) {
+        console.warn('[Database] Supabase upsertLoginAttempt failed:', err);
+      }
+    }
+  }
+
+  public async clearLoginAttempt(key: string): Promise<void> {
+    const normalizedKey = key.toLowerCase().trim();
+    if (!this.state.loginAttempts) {
+      this.state.loginAttempts = [];
+    }
+    this.state.loginAttempts = this.state.loginAttempts.filter(r => r.key !== normalizedKey);
+    this.saveToFile();
+
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        await supabase.from('login_attempts').delete().eq('key', normalizedKey);
+      } catch (err) {
+        console.warn('[Database] Supabase clearLoginAttempt failed:', err);
+      }
+    }
+  }
+
+  // ==========================================
+  // REFRESH TOKEN OPERATIONS (Phase 4 Sessions)
+  // ==========================================
+
+  public async createRefreshToken(record: RefreshTokenRecord): Promise<RefreshTokenRecord> {
+    if (!this.state.refreshTokens) {
+      this.state.refreshTokens = [];
+    }
+    this.state.refreshTokens.push(record);
+    this.saveToFile();
+
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        await supabase.from('refresh_tokens').insert({
+          id: record.id,
+          user_id: record.userId,
+          token_hash: record.tokenHash,
+          family_id: record.familyId,
+          expires_at: record.expiresAt,
+          revoked_at: record.revokedAt || null,
+          replaced_by_id: record.replacedById || null,
+          created_at: record.createdAt,
+          ip: record.ip || null,
+          user_agent: record.userAgent || null,
+        });
+      } catch (err) {
+        console.warn('[Database] Supabase create refresh token failed:', err);
+      }
+    }
+
+    return record;
+  }
+
+  public async findRefreshTokenByHash(tokenHash: string): Promise<RefreshTokenRecord | null> {
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('refresh_tokens')
+          .select('*')
+          .eq('token_hash', tokenHash)
+          .single();
+
+        if (!error && data) {
+          return {
+            id: data.id,
+            userId: data.user_id,
+            tokenHash: data.token_hash,
+            familyId: data.family_id,
+            expiresAt: data.expires_at,
+            revokedAt: data.revoked_at || null,
+            replacedById: data.replaced_by_id || null,
+            createdAt: data.created_at,
+            ip: data.ip || undefined,
+            userAgent: data.user_agent || undefined,
+          };
+        }
+      } catch (err) {
+        console.warn('[Database] Supabase find refresh token failed, using local store:', err);
+      }
+    }
+
+    if (!this.state.refreshTokens) {
+      this.state.refreshTokens = [];
+    }
+    const found = this.state.refreshTokens.find(r => r.tokenHash === tokenHash);
+    return found ? { ...found } : null;
+  }
+
+  public async revokeRefreshToken(id: string, replacedById?: string): Promise<void> {
+    const nowIso = new Date().toISOString();
+    if (this.state.refreshTokens) {
+      const idx = this.state.refreshTokens.findIndex(r => r.id === id);
+      if (idx !== -1) {
+        this.state.refreshTokens[idx].revokedAt = nowIso;
+        if (replacedById) {
+          this.state.refreshTokens[idx].replacedById = replacedById;
+        }
+        this.saveToFile();
+      }
+    }
+
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        const updates: any = { revoked_at: nowIso };
+        if (replacedById) {
+          updates.replaced_by_id = replacedById;
+        }
+        await supabase.from('refresh_tokens').update(updates).eq('id', id);
+      } catch (err) {
+        console.warn('[Database] Supabase revoke refresh token failed:', err);
+      }
+    }
+  }
+
+  public async revokeRefreshTokenFamily(familyId: string): Promise<void> {
+    const nowIso = new Date().toISOString();
+    if (this.state.refreshTokens) {
+      let changed = false;
+      for (const r of this.state.refreshTokens) {
+        if (r.familyId === familyId && !r.revokedAt) {
+          r.revokedAt = nowIso;
+          changed = true;
+        }
+      }
+      if (changed) this.saveToFile();
+    }
+
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        await supabase
+          .from('refresh_tokens')
+          .update({ revoked_at: nowIso })
+          .eq('family_id', familyId)
+          .is('revoked_at', null);
+      } catch (err) {
+        console.warn('[Database] Supabase revoke refresh token family failed:', err);
+      }
+    }
+  }
+
+  public async revokeAllUserRefreshTokens(userId: string): Promise<void> {
+    const nowIso = new Date().toISOString();
+    if (this.state.refreshTokens) {
+      let changed = false;
+      for (const r of this.state.refreshTokens) {
+        if (r.userId === userId && !r.revokedAt) {
+          r.revokedAt = nowIso;
+          changed = true;
+        }
+      }
+      if (changed) this.saveToFile();
+    }
+
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        await supabase
+          .from('refresh_tokens')
+          .update({ revoked_at: nowIso })
+          .eq('user_id', userId)
+          .is('revoked_at', null);
+      } catch (err) {
+        console.warn('[Database] Supabase revoke all user refresh tokens failed:', err);
+      }
+    }
+  }
+
+  public async cleanupExpiredRefreshTokens(): Promise<number> {
+    const nowMs = Date.now();
+    let cleaned = 0;
+    if (this.state.refreshTokens) {
+      const initialCount = this.state.refreshTokens.length;
+      this.state.refreshTokens = this.state.refreshTokens.filter(r => new Date(r.expiresAt).getTime() > nowMs);
+      cleaned = initialCount - this.state.refreshTokens.length;
+      if (cleaned > 0) this.saveToFile();
+    }
+
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        await supabase
+          .from('refresh_tokens')
+          .delete()
+          .lt('expires_at', new Date(nowMs).toISOString());
+      } catch (err) {
+        console.warn('[Database] Supabase cleanup expired refresh tokens failed:', err);
+      }
+    }
+
+    return cleaned;
   }
 
   public async deleteUser(id: string): Promise<boolean> {
@@ -480,6 +979,7 @@ class DatabaseService {
     }
 
     this.state.users.splice(userIndex, 1);
+    await this.revokeAllUserRefreshTokens(id);
     this.saveToFile();
 
     const supabase = getSupabase();

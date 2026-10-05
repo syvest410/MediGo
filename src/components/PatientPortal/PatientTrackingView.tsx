@@ -12,6 +12,7 @@ import {
   Building2
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { apiFetch } from '../../lib/apiFetch';
 
 export const PatientTrackingView: React.FC = () => {
   const { language } = useLanguage();
@@ -30,7 +31,7 @@ export const PatientTrackingView: React.FC = () => {
     setErrorMessage('');
     try {
       const trimmed = trackingInput.trim();
-      const res = await fetch(`/api/orders/track/${encodeURIComponent(trimmed)}`);
+      const res = await apiFetch(`/api/orders/track/${encodeURIComponent(trimmed)}`);
       if (!res.ok) {
         throw new Error(
           isDe

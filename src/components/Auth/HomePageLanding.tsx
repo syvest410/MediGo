@@ -13,7 +13,6 @@ import {
   Sun, 
   Moon, 
   Smartphone, 
-  Copy, 
   CheckCircle2, 
   Search, 
   ChevronRight 
@@ -42,54 +41,42 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
 }) => {
   const { language, toggleLanguage, t } = useLanguage();
   const isDe = language === 'de';
-  const { quickLoginAs } = useAuth();
+  const { login } = useAuth();
 
   const [selectedRole, setSelectedRole] = useState<Role>('CLIENT_CLINIC');
-  const [emailInput, setEmailInput] = useState('probeneingang@kgu.de');
-  const [passwordInput, setPasswordInput] = useState('••••••••••••');
-  const [pinInput, setPinInput] = useState('1044');
-  const [contractInput, setContractInput] = useState('CTR-2026-UKF');
-  const [copiedShare, setCopiedShare] = useState(false);
+  const [emailInput, setEmailInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [pinInput, setPinInput] = useState('');
+  const [contractInput, setContractInput] = useState('');
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   const handleFormLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const user = INITIAL_USERS.find(u => u.role === selectedRole) || INITIAL_USERS[0];
-    let viewMode: 'DRIVER_MOBILE' | 'DISPATCH_DASHBOARD' | 'CLIENT_PORTAL' = 'DISPATCH_DASHBOARD';
-    if (selectedRole === 'CLIENT_CLINIC') viewMode = 'CLIENT_PORTAL';
-    if (selectedRole === 'DRIVER') viewMode = 'DRIVER_MOBILE';
-
+    setLoginError(null);
+    setIsLoggingIn(true);
     try {
-      await quickLoginAs(selectedRole, emailInput);
-    } catch (e) {
-      console.warn('Quick login error:', e);
+      const result = await login(emailInput.trim(), passwordInput);
+      if (result.success) {
+        let viewMode: 'DRIVER_MOBILE' | 'DISPATCH_DASHBOARD' | 'CLIENT_PORTAL' = 'DISPATCH_DASHBOARD';
+        if (selectedRole === 'CLIENT_CLINIC') viewMode = 'CLIENT_PORTAL';
+        if (selectedRole === 'DRIVER') viewMode = 'DRIVER_MOBILE';
+        const user = INITIAL_USERS.find(u => u.email.toLowerCase() === emailInput.trim().toLowerCase()) || INITIAL_USERS[0];
+        onLogin(user, viewMode);
+      } else {
+        setLoginError(result.error || (isDe ? 'Anmeldung fehlgeschlagen' : 'Authentication failed'));
+      }
+    } catch (e: any) {
+      setLoginError(e.message || 'Login error');
+    } finally {
+      setIsLoggingIn(false);
     }
-    onLogin(user, viewMode);
   };
 
-  const handleQuickLogin = async (role: Role, viewMode: 'DRIVER_MOBILE' | 'DISPATCH_DASHBOARD' | 'CLIENT_PORTAL') => {
-    const user = INITIAL_USERS.find(u => u.role === role) || INITIAL_USERS[0];
-    try {
-      await quickLoginAs(role, user.email);
-    } catch (e) {
-      console.warn('Quick login error:', e);
-    }
-    onLogin(user, viewMode);
-  };
-
-  const shareText = isDe 
-    ? `🏥 MediGo Medizinische Logistik (Hauptstandort Wiesbaden) — Sandbox Zugangsdaten:
-• KLINIK-PORTAL: probeneingang@kgu.de (Vertrag: CTR-2026-UKF)
-• FAHRER-APP: Hans Schmidt (PIN: 1044, Fahrzeug: WI-MG 7741)
-• LEITSTAND / CEO: dispatch@medigo-hessen.de`
-    : `🏥 MediGo Medical Logistics (Wiesbaden HQ) — Sandbox Credentials:
-• CLINIC PORTAL: probeneingang@kgu.de (Contract: CTR-2026-UKF)
-• DRIVER APP: Hans Schmidt (PIN: 1044, Vehicle: WI-MG 7741)
-• CEO DISPATCH: dispatch@medigo-hessen.de`;
-
-  const handleCopyShare = () => {
-    navigator.clipboard.writeText(shareText);
-    setCopiedShare(true);
-    setTimeout(() => setCopiedShare(false), 2500);
+  const handleSelectRole = (role: Role) => {
+    setSelectedRole(role);
+    const formCard = document.getElementById('login-form-card');
+    formCard?.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
@@ -186,7 +173,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
             </button>
 
             <button
-              onClick={() => handleQuickLogin('CLIENT_CLINIC', 'CLIENT_PORTAL')}
+              onClick={() => handleSelectRole('CLIENT_CLINIC')}
               className="bg-red-600 hover:bg-red-500 text-white font-bold px-4 py-2 rounded-lg transition-all shadow-md flex items-center space-x-1.5"
             >
               <Lock className="w-3.5 h-3.5" />
@@ -266,18 +253,6 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                 </div>
               </div>
 
-              {/* Demo Share Bar */}
-              <div className="bg-slate-900/85 border border-slate-700/80 backdrop-blur-md p-3 rounded-xl flex items-center justify-between text-xs text-slate-300 shadow-xl">
-                <span className="truncate pr-2 font-medium">{t('landing.demo_banner')}</span>
-                <button
-                  onClick={handleCopyShare}
-                  className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 px-3 py-1.5 rounded-lg flex items-center space-x-1 shrink-0 font-semibold shadow-sm transition-all"
-                >
-                  {copiedShare ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedShare ? t('common.copied') : t('common.copy')}</span>
-                </button>
-              </div>
-
               {/* Fleet & Courier Showcase Banner */}
               <div className={`border rounded-2xl p-3.5 flex flex-col sm:flex-row items-center gap-4 shadow-2xl backdrop-blur-md overflow-hidden transition-all ${
                 isNightShift 
@@ -326,7 +301,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
             </div>
 
             {/* Right Column: Secure Portal Login Form */}
-            <div className="lg:col-span-5">
+            <div className="lg:col-span-5" id="login-form-card">
               <div className={`border rounded-2xl p-6 shadow-2xl space-y-5 relative backdrop-blur-md transition-colors duration-300 ${
                 isNightShift 
                   ? 'bg-slate-900/90 border-slate-800 text-white' 
@@ -342,6 +317,12 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                     {t('login.subtitle')}
                   </p>
                 </div>
+
+                {loginError && (
+                  <div className="bg-red-950/80 border border-red-700 text-red-200 text-xs p-3 rounded-xl flex items-center space-x-2">
+                    <span>{loginError}</span>
+                  </div>
+                )}
 
               {/* Role Selection Tabs */}
               <div className={`grid grid-cols-3 gap-1.5 p-1 rounded-xl border text-xs ${
@@ -405,8 +386,22 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                       <input
                         type="email"
                         required
+                        placeholder="probeneingang@kgu.de"
                         value={emailInput}
                         onChange={(e) => setEmailInput(e.target.value)}
+                        className={`w-full rounded-lg p-2.5 focus:outline-none focus:border-red-500 border ${
+                          isNightShift ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                        }`}
+                      />
+                    </div>
+                    <div>
+                      <label className={`block font-semibold mb-1 ${isNightShift ? 'text-slate-300' : 'text-slate-700'}`}>{t('login.password')}</label>
+                      <input
+                        type="password"
+                        required
+                        placeholder="••••••••••••"
+                        value={passwordInput}
+                        onChange={(e) => setPasswordInput(e.target.value)}
                         className={`w-full rounded-lg p-2.5 focus:outline-none focus:border-red-500 border ${
                           isNightShift ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
                         }`}
@@ -416,14 +411,13 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                       <label className={`block font-semibold mb-1 ${isNightShift ? 'text-slate-300' : 'text-slate-700'}`}>{t('login.contract_number')}</label>
                       <input
                         type="text"
-                        required
+                        placeholder="CTR-2026-UKF-HE-01"
                         value={contractInput}
                         onChange={(e) => setContractInput(e.target.value)}
                         className={`w-full rounded-lg p-2.5 focus:outline-none focus:border-red-500 font-mono border ${
                           isNightShift ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
                         }`}
                       />
-                      <span className={`text-[10px] mt-0.5 block ${isNightShift ? 'text-slate-500' : 'text-slate-500'}`}>Preset: CTR-2026-UKF</span>
                     </div>
                   </>
                 )}
@@ -431,24 +425,26 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                 {selectedRole === 'DRIVER' && (
                   <>
                     <div>
-                      <label className="block text-slate-300 font-semibold mb-1">{t('login.driver_name')}</label>
+                      <label className="block text-slate-300 font-semibold mb-1">{t('login.dispatcher_email')}</label>
                       <input
-                        type="text"
-                        readOnly
-                        value="Hans Schmidt (MediGo Courier • WI-MG 7741)"
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-slate-300 focus:outline-none font-medium"
+                        type="email"
+                        required
+                        placeholder="hans.schmidt@medigo-hessen.de"
+                        value={emailInput}
+                        onChange={(e) => setEmailInput(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-500 font-mono"
                       />
                     </div>
                     <div>
-                      <label className="block text-slate-300 font-semibold mb-1">{t('login.driver_pin')}</label>
+                      <label className="block text-slate-300 font-semibold mb-1">{t('login.password')}</label>
                       <input
                         type="password"
                         required
-                        value={pinInput}
-                        onChange={(e) => setPinInput(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-500 font-mono text-base tracking-widest"
+                        placeholder="••••••••••••"
+                        value={passwordInput}
+                        onChange={(e) => setPasswordInput(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-500"
                       />
-                      <span className="text-[10px] text-slate-500 mt-0.5 block">{isDe ? 'Demo Kurier Sicherheits-PIN: 1044' : 'Demo Driver Security PIN: 1044'}</span>
                     </div>
                   </>
                 )}
@@ -460,6 +456,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                       <input
                         type="email"
                         required
+                        placeholder="dispatch@medigo-hessen.de"
                         value={emailInput}
                         onChange={(e) => setEmailInput(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-500"
@@ -470,6 +467,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                       <input
                         type="password"
                         required
+                        placeholder="••••••••••••"
                         value={passwordInput}
                         onChange={(e) => setPasswordInput(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-500"
@@ -480,41 +478,14 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
 
                 <button
                   type="submit"
-                  className="w-full bg-red-600 hover:bg-red-500 text-white font-extrabold py-3 rounded-xl transition-all shadow-lg flex items-center justify-center space-x-2 text-sm"
+                  disabled={isLoggingIn}
+                  className="w-full bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-extrabold py-3 rounded-xl transition-all shadow-lg flex items-center justify-center space-x-2 text-sm"
                 >
-                  <span>{t('login.submit_btn')}</span>
+                  <span>{isLoggingIn ? (isDe ? 'Wird angemeldet...' : 'Signing In...') : t('login.submit_btn')}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
 
               </form>
-
-              {/* Direct 1-Click Login Shortcuts */}
-              <div className="pt-3 border-t border-slate-800 space-y-2">
-                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block text-center">
-                  {t('login.instant_shortcuts')}
-                </span>
-                
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    onClick={() => handleQuickLogin('CLIENT_CLINIC', 'CLIENT_PORTAL')}
-                    className="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-blue-400 py-2 rounded-lg text-[11px] font-bold transition-all text-center truncate px-1"
-                  >
-                    {t('login.btn_clinic_short')}
-                  </button>
-                  <button
-                    onClick={() => handleQuickLogin('DRIVER', 'DRIVER_MOBILE')}
-                    className="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-emerald-400 py-2 rounded-lg text-[11px] font-bold transition-all text-center truncate px-1"
-                  >
-                    {t('login.btn_driver_short')}
-                  </button>
-                  <button
-                    onClick={() => handleQuickLogin('DISPATCHER', 'DISPATCH_DASHBOARD')}
-                    className="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-red-400 py-2 rounded-lg text-[11px] font-bold transition-all text-center truncate px-1"
-                  >
-                    {t('login.btn_ceo_short')}
-                  </button>
-                </div>
-              </div>
 
             </div>
           </div>
@@ -622,7 +593,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                 </li>
               </ul>
               <button
-                onClick={() => handleQuickLogin('CLIENT_CLINIC', 'CLIENT_PORTAL')}
+                onClick={() => handleSelectRole('CLIENT_CLINIC')}
                 className={`w-full font-bold py-2 rounded-xl text-xs transition-all flex items-center justify-center space-x-1 border ${
                   isNightShift 
                     ? 'bg-slate-900 hover:bg-slate-800 text-blue-400 border-blue-900' 
@@ -664,7 +635,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                 </li>
               </ul>
               <button
-                onClick={() => handleQuickLogin('DRIVER', 'DRIVER_MOBILE')}
+                onClick={() => handleSelectRole('DRIVER')}
                 className={`w-full font-bold py-2 rounded-xl text-xs transition-all flex items-center justify-center space-x-1 border ${
                   isNightShift 
                     ? 'bg-slate-900 hover:bg-slate-800 text-emerald-400 border-emerald-900' 
@@ -706,7 +677,7 @@ export const HomePageLanding: React.FC<HomePageLandingProps> = ({
                 </li>
               </ul>
               <button
-                onClick={() => handleQuickLogin('DISPATCHER', 'DISPATCH_DASHBOARD')}
+                onClick={() => handleSelectRole('DISPATCHER')}
                 className={`w-full font-bold py-2 rounded-xl text-xs transition-all flex items-center justify-center space-x-1 border ${
                   isNightShift 
                     ? 'bg-slate-900 hover:bg-slate-800 text-red-400 border-red-900' 

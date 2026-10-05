@@ -7,10 +7,6 @@ import {
   Mail,
   ArrowRight,
   AlertCircle,
-  Truck,
-  Building2,
-  FlaskConical,
-  Crown,
   Database,
   CheckCircle2,
 } from 'lucide-react';
@@ -41,12 +37,6 @@ export const LoginForm: React.FC = () => {
     if (!result.success) {
       setError(result.error || (isDe ? 'Authentifizierung fehlgeschlagen. Bitte Zugangsdaten prüfen.' : 'Authentication failed. Please check your credentials.'));
     }
-  };
-
-  const handleQuickFill = (demoEmail: string, demoPass: string) => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
-    setError('');
   };
 
   return (
@@ -164,70 +154,6 @@ export const LoginForm: React.FC = () => {
               )}
             </button>
           </form>
-
-          {/* Quick Demo Credentials */}
-          <div className="border-t border-slate-800/80 pt-4 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                {isDe ? 'Sofortiger Testzugang:' : 'Instant Demo Access (Seeded):'}
-              </span>
-              <span className="text-[10px] text-cyan-400 font-mono">{isDe ? '1-Klick Ausfüllen' : '1-Click Auto-Fill'}</span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() => handleQuickFill('nsansvester89@gmail.com', 'AdminPass2026!')}
-                className="p-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500 rounded-xl text-left transition-all group"
-              >
-                <div className="flex items-center space-x-1.5 text-amber-400 font-bold text-[11px]">
-                  <Crown className="w-3.5 h-3.5" />
-                  <span>Master Admin</span>
-                </div>
-                <div className="text-[10px] text-slate-400 truncate mt-0.5">nsansvester89@gmail.com</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickFill('hans.schmidt@medigo-hessen.de', 'DriverPass2026!')}
-                className="p-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500 rounded-xl text-left transition-all group"
-              >
-                <div className="flex items-center space-x-1.5 text-cyan-400 font-bold text-[11px]">
-                  <Truck className="w-3.5 h-3.5" />
-                  <span>{isDe ? 'Medizinischer Kurier' : 'Medical Courier'}</span>
-                </div>
-                <div className="text-[10px] text-slate-400 truncate mt-0.5">hans.schmidt (Van 7741)</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickFill('probeneingang@kgu.de', 'ClinicPass2026!')}
-                className="p-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500 rounded-xl text-left transition-all group"
-              >
-                <div className="flex items-center space-x-1.5 text-emerald-400 font-bold text-[11px]">
-                  <Building2 className="w-3.5 h-3.5" />
-                  <span>{isDe ? 'Klinik / Einsender' : 'Hospital Clinic'}</span>
-                </div>
-                <div className="text-[10px] text-slate-400 truncate mt-0.5">
-                  UKF Frankfurt • <span className="font-mono text-cyan-300">CTR-2026</span>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickFill('empfang@synlab-hessen.de', 'LabPass2026!')}
-                className="p-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500 rounded-xl text-left transition-all group"
-              >
-                <div className="flex items-center space-x-1.5 text-purple-400 font-bold text-[11px]">
-                  <FlaskConical className="w-3.5 h-3.5" />
-                  <span>{isDe ? 'Diagnostik-Labor' : 'Diagnostic Lab'}</span>
-                </div>
-                <div className="text-[10px] text-slate-400 truncate mt-0.5">
-                  Synlab Hessen • <span className="font-mono text-cyan-300">CTR-2026</span>
-                </div>
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Security / Administration Policy Notice */}

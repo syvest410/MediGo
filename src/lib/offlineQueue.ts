@@ -1,6 +1,7 @@
 // Offline Queue Manager for Medical Driver Resilience (Basements & Blindspots)
 
 import { PendingOfflineAction } from '../types';
+import { apiFetch, getMemoryToken, refreshSession } from './apiFetch';
 
 const QUEUE_STORAGE_KEY = 'biodispatch_offline_queue_v1';
 const SIMULATED_OFFLINE_KEY = 'biodispatch_force_offline';
@@ -132,27 +133,29 @@ export class OfflineQueueManager {
 
     const queueCopy = [...this.queue];
 
-    // Read auth token if present in localStorage
-    let token = '';
-    try {
-      const session = localStorage.getItem('medigo_auth_session');
-      if (session) {
-        token = JSON.parse(session).token || '';
-      }
-    } catch {
-      // ignore
+    // Check memory token or refresh session first before syncing
+    let token = getMemoryToken();
+    if (!token) {
+      token = await refreshSession();
     }
 
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    if (!token) {
+      // Session cannot be refreshed: keep queue intact, notify, and prompt user to login
+      this.isProcessing = false;
+      this.notify();
+      return {
+        syncedCount: 0,
+        errors: ['Authentifizierungssitzung abgelaufen. Bitte erneut anmelden, um ausstehende Auftragsdaten zu synchronisieren.'],
+      };
+    }
 
     for (const action of queueCopy) {
       try {
-        // Post to deterministic /api/v1/sync
-        const response = await fetch('/api/v1/sync', {
+        // Post to deterministic /api/v1/sync using apiFetch
+        const response = await apiFetch('/api/v1/sync', {
           method: 'POST',
-          headers,
-          body: JSON.stringify(action)
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(action),
         });
 
         if (response.ok) {
@@ -168,6 +171,10 @@ export class OfflineQueueManager {
           } else {
             syncedIds.push(action.id);
           }
+        } else if (response.status === 401) {
+          // Auth failed even after refresh: stop sync, keep remaining queue
+          errors.push('Authentifizierungssitzung abgelaufen. Bitte erneut anmelden.');
+          break;
         } else {
           const errData = await response.json().catch(() => ({ message: 'Server sync error' }));
           action.retryCount++;

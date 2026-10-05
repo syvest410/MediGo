@@ -1,5 +1,9 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, Role } from '../types';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import { User } from '../types';
+import { apiFetch, setMemoryToken, refreshSession, registerAuthHandlers } from '../lib/apiFetch';
+import { authChannel } from '../lib/authChannel';
+
+export const IDLE_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes configurable idle timeout
 
 export interface DatabaseStatus {
   provider: 'supabase' | 'local_persistent';
@@ -19,44 +23,33 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  quickLoginAs: (role?: Role, email?: string) => Promise<{ success: boolean; token?: string; user?: User; error?: string }>;
-  ensureValidToken: (roleFallback?: Role) => Promise<string | null>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  updateSession: (user: User, token: string) => void;
   dbStatus: DatabaseStatus | null;
   refreshDbStatus: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const TOKEN_KEY = 'medigo_auth_token';
-const USER_KEY = 'medigo_auth_user';
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem(USER_KEY);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return null;
-      }
-    }
-    return null;
-  });
-
-  const [token, setToken] = useState<string | null>(() => {
-    const t = localStorage.getItem(TOKEN_KEY);
-    if (!t || t === 'null' || t === 'undefined') return null;
-    return t;
-  });
-
+  // Session state held ONLY in React memory - zero localStorage/sessionStorage persistence
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [dbStatus, setDbStatus] = useState<DatabaseStatus | null>(null);
 
-  const fetchDbStatus = async () => {
+  const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const clearSessionMemory = useCallback(() => {
+    setCurrentUser(null);
+    setToken(null);
+    setMemoryToken(null);
+  }, []);
+
+  const fetchDbStatus = useCallback(async () => {
     try {
-      const res = await fetch('/api/db/status');
+      const res = await apiFetch('/api/db/status');
       if (res.ok) {
         const data = await res.json();
         setDbStatus(data);
@@ -64,145 +57,138 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err) {
       console.warn('Could not fetch DB status:', err);
     }
-  };
+  }, []);
 
-  // Verify stored token on initial load
-  useEffect(() => {
-    const verifyExistingSession = async () => {
-      if (!token) {
-        // Automatically establish active session
-        await autoEstablishSession();
-        return;
+  const logout = useCallback(async () => {
+    try {
+      // Clear server-side refresh token family and cookie
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      });
+    } catch (err) {
+      console.warn('Logout network error (clearing local session regardless):', err);
+    } finally {
+      clearSessionMemory();
+      authChannel.notifyLogout();
+      if (idleTimerRef.current) {
+        clearTimeout(idleTimerRef.current);
       }
+    }
+  }, [clearSessionMemory]);
 
+  // Connect apiFetch refresh callbacks to React state
+  useEffect(() => {
+    registerAuthHandlers(
+      (newToken, refreshedUser) => {
+        setToken(newToken);
+        if (refreshedUser) {
+          setCurrentUser(refreshedUser);
+        }
+      },
+      () => {
+        clearSessionMemory();
+      }
+    );
+  }, [clearSessionMemory]);
+
+  // Multi-tab logout listener
+  useEffect(() => {
+    const unsubscribe = authChannel.onLogout(() => {
+      clearSessionMemory();
+    });
+    return unsubscribe;
+  }, [clearSessionMemory]);
+
+  // Initial session recovery on app mount: POST /api/auth/refresh with credentials: 'include'
+  useEffect(() => {
+    let isMounted = true;
+
+    const initSession = async () => {
       try {
-        const res = await fetch('/api/auth/me', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+        const res = await fetch('/api/auth/refresh', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
         });
 
         if (res.ok) {
           const data = await res.json();
-          setCurrentUser(data.user);
-          localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+          if (isMounted) {
+            const accessToken = data.accessToken || data.token;
+            setToken(accessToken);
+            setMemoryToken(accessToken);
+            setCurrentUser(data.user);
+          }
         } else {
-          // Token invalid or expired - auto refresh session
-          await autoEstablishSession();
+          if (isMounted) {
+            clearSessionMemory();
+          }
         }
       } catch (err) {
-        console.warn('Session verification fallback:', err);
-        await autoEstablishSession();
+        console.warn('Initial session recovery failed (showing login):', err);
+        if (isMounted) {
+          clearSessionMemory();
+        }
       } finally {
-        setIsLoading(false);
-        fetchDbStatus();
+        if (isMounted) {
+          setIsLoading(false);
+          fetchDbStatus();
+        }
       }
     };
 
-    verifyExistingSession();
-  }, []);
+    initSession();
 
-  const autoEstablishSession = async () => {
-    try {
-      const res = await fetch('/api/auth/quick-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          role: currentUser?.role || 'ADMIN',
-          email: currentUser?.email || 'nsansvester89@gmail.com',
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.token) {
-          setToken(data.token);
-          setCurrentUser(data.user);
-          localStorage.setItem(TOKEN_KEY, data.token);
-          localStorage.setItem(USER_KEY, JSON.stringify(data.user));
-        }
-      }
-    } catch (e) {
-      console.warn('Auto-session establishment failed:', e);
-    } finally {
-      setIsLoading(false);
-      fetchDbStatus();
-    }
-  };
+    return () => {
+      isMounted = false;
+    };
+  }, [clearSessionMemory, fetchDbStatus]);
 
-  const ensureValidToken = async (roleFallback?: Role): Promise<string | null> => {
-    if (token && token !== 'null' && token !== 'undefined') {
-      try {
-        const res = await fetch('/api/auth/me', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
-          return token;
-        }
-      } catch (err) {
-        // Continue to fresh token request
-      }
+  // Idle timeout handler (15 minutes of inactivity)
+  const resetIdleTimer = useCallback(() => {
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current);
     }
 
-    try {
-      const targetRole = roleFallback || currentUser?.role || 'ADMIN';
-      const targetEmail = currentUser?.email || (targetRole === 'ADMIN' ? 'nsansvester89@gmail.com' : undefined);
-
-      const res = await fetch('/api/auth/quick-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          role: targetRole,
-          email: targetEmail,
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.token) {
-          setToken(data.token);
-          setCurrentUser(data.user);
-          localStorage.setItem(TOKEN_KEY, data.token);
-          localStorage.setItem(USER_KEY, JSON.stringify(data.user));
-          return data.token;
-        }
-      }
-    } catch (err) {
-      console.warn('[Auth] ensureValidToken failed:', err);
+    if (currentUser) {
+      idleTimerRef.current = setTimeout(() => {
+        console.warn('[Security] Idle timeout reached (15 minutes inactive). Logging out.');
+        logout();
+      }, IDLE_TIMEOUT_MS);
     }
-    return token;
-  };
+  }, [currentUser, logout]);
 
-  const quickLoginAs = async (role?: Role, email?: string): Promise<{ success: boolean; token?: string; user?: User; error?: string }> => {
-    setIsLoading(true);
-    try {
-      const res = await fetch('/api/auth/quick-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role, email }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.token) {
-        setIsLoading(false);
-        return { success: false, error: data.message || 'Quick login failed' };
+  useEffect(() => {
+    if (!currentUser) {
+      if (idleTimerRef.current) {
+        clearTimeout(idleTimerRef.current);
       }
-      setToken(data.token);
-      setCurrentUser(data.user);
-      localStorage.setItem(TOKEN_KEY, data.token);
-      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
-      setIsLoading(false);
-      fetchDbStatus();
-      return { success: true, token: data.token, user: data.user };
-    } catch (err: any) {
-      setIsLoading(false);
-      return { success: false, error: err.message || 'Quick login network error' };
+      return;
     }
-  };
+
+    resetIdleTimer();
+
+    const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+    const handleActivity = () => resetIdleTimer();
+
+    activityEvents.forEach(evt => window.addEventListener(evt, handleActivity, { passive: true }));
+
+    return () => {
+      activityEvents.forEach(evt => window.removeEventListener(evt, handleActivity));
+      if (idleTimerRef.current) {
+        clearTimeout(idleTimerRef.current);
+      }
+    };
+  }, [currentUser, resetIdleTimer]);
 
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -216,10 +202,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: false, error: data.message || 'Login failed' };
       }
 
-      setToken(data.token);
+      const accessToken = data.accessToken || data.token;
+      setToken(accessToken);
+      setMemoryToken(accessToken);
       setCurrentUser(data.user);
-      localStorage.setItem(TOKEN_KEY, data.token);
-      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
 
       setIsLoading(false);
       fetchDbStatus();
@@ -230,29 +216,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const logout = () => {
-    setToken(null);
-    setCurrentUser(null);
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
-  };
-
   const refreshUser = async () => {
-    if (!token) return;
     try {
-      const res = await fetch('/api/auth/me', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const res = await apiFetch('/api/auth/me');
       if (res.ok) {
         const data = await res.json();
         setCurrentUser(data.user);
-        localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      } else {
+        await logout();
       }
     } catch (err) {
       console.error('Failed to refresh user:', err);
+      await logout();
     }
+  };
+
+  const updateSession = (updatedUser: User, newToken: string) => {
+    setCurrentUser(updatedUser);
+    setToken(newToken);
+    setMemoryToken(newToken);
   };
 
   return (
@@ -263,10 +245,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated: Boolean(currentUser && token),
         isLoading,
         login,
-        quickLoginAs,
-        ensureValidToken,
         logout,
         refreshUser,
+        updateSession,
         dbStatus,
         refreshDbStatus: fetchDbStatus,
       }}

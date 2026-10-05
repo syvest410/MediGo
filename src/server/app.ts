@@ -1,6 +1,10 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
+import helmet from 'helmet';
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import { dbService } from './db';
 import { prisma, isPrismaAvailable } from './prisma';
 import {
@@ -8,6 +12,17 @@ import {
   OfflineSyncItemSchema,
   CreateOrderSchema,
   CreateUserSchema,
+  UpdateUserSchema,
+  UpsertOrganizationSchema,
+  PatchOrderSchema,
+  PreTripCheckSchema,
+  CustodySignOffSchema,
+  TemperatureTelemetrySchema,
+  CeoEmailForwardingSchema,
+  CeoTestSendSchema,
+  ChangePasswordSchema,
+  validatePasswordAgainstUser,
+  LoginSchema,
 } from './validation';
 import {
   comparePassword,
@@ -19,9 +34,17 @@ import {
   checkLoginRateLimit,
   recordFailedLogin,
   resetFailedLogin,
+  enforcePasswordChange,
+  validateCsrfOrigin,
+  generateRawRefreshToken,
+  hashRefreshToken,
+  getRefreshCookieOptions,
+  REFRESH_COOKIE_NAME,
+  DUMMY_HASH,
   AuthenticatedRequest,
 } from './auth';
 import {
+  canAccessOrder,
   canUserAccessOrder,
   sanitizeOrderForRole,
   getPublicTrackingMilestones,
@@ -35,38 +58,110 @@ import {
   AuditLog,
   PendingOfflineAction,
   User,
+  RefreshTokenRecord,
 } from '../types';
 import { validateStateTransition } from '../lib/stateMachine';
 
 const app = express();
 
-app.use(express.json({ limit: '15mb' }));
+// Trust proxy for Vercel edge/routing infrastructure:
+// Setting trust proxy to 1 trusts the immediate front-facing reverse proxy,
+// ensuring req.ip extracts the real client IP rather than trusting spoofed client-sent X-Forwarded-For headers.
+app.set('trust proxy', 1);
+
+// HTTP Security Headers via Helmet
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+}));
+
+function parseOriginSafely(value: string): string | null {
+  try {
+    return new URL(value).origin.toLowerCase();
+  } catch {
+    const trimmed = value.trim().toLowerCase();
+    return trimmed ? trimmed : null;
+  }
+}
+
+// CORS policy with strict allowlist
+const rawAllowedOrigins = process.env.ALLOWED_ORIGINS || '';
+const allowedOrigins = new Set<string>();
+
+// Localhost origins
+['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:5173'].forEach(o => allowedOrigins.add(o));
+
+if (process.env.APP_URL) {
+  const parsed = parseOriginSafely(process.env.APP_URL);
+  if (parsed) allowedOrigins.add(parsed);
+}
+if (rawAllowedOrigins) {
+  rawAllowedOrigins.split(',').forEach(item => {
+    const parsed = parseOriginSafely(item);
+    if (parsed) allowedOrigins.add(parsed);
+  });
+}
+if (process.env.VERCEL_URL) {
+  allowedOrigins.add(`https://${process.env.VERCEL_URL.toLowerCase().trim()}`);
+}
+if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+  allowedOrigins.add(`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL.toLowerCase().trim()}`);
+}
+allowedOrigins.add('https://aistudio.google.com');
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    const normalized = origin.toLowerCase().trim();
+    if (
+      allowedOrigins.has(normalized) ||
+      (normalized.endsWith('.run.app') && (normalized.includes('ais-dev-') || normalized.includes('ais-pre-')))
+    ) {
+      return callback(null, true);
+    }
+    return callback(null, false);
+  },
+  credentials: true,
+}));
+
+// Parse cookies for HTTP-only refresh tokens (Path=/api/auth)
+app.use(cookieParser());
+
+// Request body limits:
+// Routes that handle large payloads (offline sync bundles, digital signatures, telemetry) get dedicated 5mb limits
+app.use(['/api/v1/sync', '/api/sync', '/api/sync-offline', '/api/orders/:id/chain-of-custody'], express.json({ limit: '5mb' }));
+// All other endpoints have strict 100kb limit
+app.use(express.json({ limit: '100kb' }));
 
 // Health Check
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     service: 'BioDispatch UN 3373 German Medical Logistics Server',
-    database: dbService.getStatus(),
     timestamp: new Date().toISOString(),
   });
 });
 
-// Database & Backend Status
-app.get('/api/db/status', async (req, res) => {
+// Database & Backend Status (Anonymous callers receive safe minimal response; ADMIN receives detailed telemetry)
+app.get('/api/db/status', optionalAuth, async (req: AuthenticatedRequest, res) => {
   try {
-    const status = await dbService.getDetailedStatus();
-    res.json(status);
+    if (req.user && (req.user.role === 'ADMIN' || req.user.role === 'DISPATCHER')) {
+      const status = await dbService.getDetailedStatus();
+      return res.json(status);
+    }
+    // Safe response for unauthenticated or non-admin callers (no database URLs, table names, or counts)
+    res.json({ ok: true });
   } catch (err: any) {
-    res.json({
-      ...dbService.getStatus(),
-      error: err?.message,
-    });
+    res.json({ ok: true });
   }
 });
 
-// Endpoint to retrieve the SQL schema to run in Supabase SQL Editor
-app.get('/api/db/schema-sql', (req, res) => {
+// Endpoint to retrieve the SQL schema (ADMIN only, disabled in production)
+app.get('/api/db/schema-sql', requireRole('ADMIN'), (req: AuthenticatedRequest, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ message: 'API route not found: GET /api/db/schema-sql' });
+  }
+
   const schemaPath = path.join(process.cwd(), 'supabase-schema.sql');
   if (fs.existsSync(schemaPath)) {
     try {
@@ -131,42 +226,47 @@ END $$;
 // AUTHENTICATION ENDPOINTS
 // ==========================================
 
-// POST Login (Least Privilege Login Security with Brute-Force Shield)
+// POST Login (Least Privilege Login Security with Persistent Brute-Force Shield & Anti-Timing Defense)
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Email and password are required.' });
+    const parseResult = LoginSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({
+        message: 'Email and password are required.',
+        errors: parseResult.error.issues.map(e => e.message),
+      });
     }
 
+    const { email, password } = parseResult.data;
     const trimmedEmail = email.trim().toLowerCase();
+    const clientIp = req.ip || (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || '127.0.0.1';
 
-    // 1. Check Rate Limit (Anti-Brute Force Protection)
-    const rateCheck = checkLoginRateLimit(trimmedEmail);
+    // 1. Check Rate Limit (Anti-Brute Force Protection backed by persistent store)
+    const rateCheck = await checkLoginRateLimit(trimmedEmail, clientIp);
     if (!rateCheck.allowed) {
       return res.status(429).json({
-        message: `Too many failed login attempts. Account access is temporarily throttled for ${rateCheck.remainingLockoutSeconds} seconds to prevent unauthorized credential stuffing.`,
+        message: 'Too many login attempts. Access is temporarily throttled to prevent unauthorized access. Please try again later.',
         retryAfterSeconds: rateCheck.remainingLockoutSeconds,
       });
     }
 
     const userWithHash = await dbService.getUserByEmailWithPassword(trimmedEmail);
+
     if (!userWithHash) {
-      const { attemptsLeft, locked } = recordFailedLogin(trimmedEmail);
+      // Anti-Timing Attack: Perform dummy bcrypt cost 12 comparison so timing is indistinguishable from valid user
+      await comparePassword(password, DUMMY_HASH);
+      await recordFailedLogin(trimmedEmail, clientIp);
+
       await dbService.createAuditLog({
         orderId: 'SEC-AUTH-FAIL',
-        actionDescription: `LOGIN_FAILED: Unknown or invalid account attempt for email ${trimmedEmail}. Remaining attempts: ${attemptsLeft}`,
+        actionDescription: `LOGIN_FAILED: Unknown or invalid account attempt for email ${trimmedEmail} from IP ${clientIp}.`,
         userId: 'ANONYMOUS',
         userName: trimmedEmail,
         userRole: 'CLIENT_CLINIC',
       });
 
-      return res.status(401).json({
-        message: locked 
-          ? 'Too many failed login attempts. Access temporarily locked for 5 minutes.'
-          : `Invalid email or password. Remaining attempts before lockout: ${attemptsLeft}`,
-      });
+      // Uniform error message with no attempt count or account existence leakage
+      return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
     if (userWithHash.active === false) {
@@ -176,32 +276,52 @@ app.post('/api/auth/login', async (req, res) => {
     const passwordHash = userWithHash.passwordHash || (userWithHash as any).password;
     if (!passwordHash) {
       console.warn(`[Auth] No password hash found for user ${userWithHash.email}`);
+      await comparePassword(password, DUMMY_HASH);
+      await recordFailedLogin(trimmedEmail, clientIp);
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
     const isMatch = await comparePassword(password, passwordHash);
     if (!isMatch) {
-      const { attemptsLeft, locked } = recordFailedLogin(trimmedEmail);
+      await recordFailedLogin(trimmedEmail, clientIp);
       await dbService.createAuditLog({
         orderId: 'SEC-AUTH-FAIL',
-        actionDescription: `LOGIN_FAILED: Incorrect password for user ${userWithHash.name} (${userWithHash.role}). Remaining attempts: ${attemptsLeft}`,
+        actionDescription: `LOGIN_FAILED: Incorrect password for user ${userWithHash.name} (${userWithHash.role}) from IP ${clientIp}.`,
         userId: userWithHash.id,
         userName: userWithHash.name,
         userRole: userWithHash.role,
       });
 
-      return res.status(401).json({
-        message: locked
-          ? 'Too many failed login attempts. Access temporarily locked for 5 minutes.'
-          : `Invalid email or password. Remaining attempts before lockout: ${attemptsLeft}`,
-      });
+      // Uniform error message with no attempt count or lockout differentiation leakage
+      return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
-    // Success: Reset failed attempts counter
-    resetFailedLogin(trimmedEmail);
+    // Success: Reset failed attempts counter ONLY for the email (IP counter preserved across accounts)
+    await resetFailedLogin(trimmedEmail);
 
     const { passwordHash: _, ...user } = userWithHash;
-    const token = generateToken(user);
+
+    // Generate Refresh Token: random 32 bytes (base64url), stored as SHA-256 hash
+    const rawRefreshToken = generateRawRefreshToken();
+    const tokenHash = hashRefreshToken(rawRefreshToken);
+    const familyId = `FAM-${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
+    const refreshTokenRecord: RefreshTokenRecord = {
+      id: `RT-${Date.now()}-${crypto.randomBytes(6).toString('hex')}`,
+      userId: user.id,
+      tokenHash,
+      familyId,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      createdAt: new Date().toISOString(),
+      ip: clientIp,
+      userAgent: (req.headers['user-agent'] as string) || undefined,
+    };
+    await dbService.createRefreshToken(refreshTokenRecord);
+
+    // Set HTTP-only, Secure (in production), SameSite=Strict cookie scoped to /api/auth
+    res.cookie(REFRESH_COOKIE_NAME, rawRefreshToken, getRefreshCookieOptions());
+
+    // Generate 15-minute access token (held only in client memory)
+    const accessToken = generateToken(user);
 
     await dbService.createAuditLog({
       orderId: 'SEC-AUTH-SUCCESS',
@@ -212,13 +332,240 @@ app.post('/api/auth/login', async (req, res) => {
     });
 
     res.json({
-      token,
+      accessToken,
+      token: accessToken, // backwards compatibility
       user,
       message: `Signed in successfully as ${user.name} (${user.role})`,
     });
   } catch (err: any) {
     console.error('Login error:', err);
     res.status(500).json({ message: err.message || 'Authentication failed' });
+  }
+});
+
+// POST Refresh (rotate refresh token in same family, return fresh access token, detect reuse)
+app.post('/api/auth/refresh', validateCsrfOrigin, async (req, res) => {
+  try {
+    const clientIp = req.ip || (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || '127.0.0.1';
+
+    // Rate limit per IP on refresh to prevent automated brute-force attacks
+    const ipRateCheck = await checkLoginRateLimit('', clientIp);
+    if (!ipRateCheck.allowed) {
+      return res.status(429).json({
+        message: 'Too many refresh requests. Access temporarily throttled.',
+        retryAfterSeconds: ipRateCheck.remainingLockoutSeconds,
+      });
+    }
+
+    const rawRefreshToken = req.cookies?.[REFRESH_COOKIE_NAME] || (req.cookies as any)?.refreshToken;
+    if (!rawRefreshToken || typeof rawRefreshToken !== 'string') {
+      return res.status(401).json({ message: 'Refresh token missing. Please sign in.' });
+    }
+
+    const tokenHash = hashRefreshToken(rawRefreshToken.trim());
+    const record = await dbService.findRefreshTokenByHash(tokenHash);
+
+    if (!record) {
+      res.clearCookie(REFRESH_COOKIE_NAME, { path: '/api/auth' });
+      return res.status(401).json({ message: 'Invalid or unknown refresh token.' });
+    }
+
+    // TOKEN REUSE DETECTION: if the refresh token was already revoked, someone is replaying a spent token!
+    if (record.revokedAt) {
+      await dbService.revokeRefreshTokenFamily(record.familyId);
+      await dbService.incrementTokenVersion(record.userId);
+      res.clearCookie(REFRESH_COOKIE_NAME, { path: '/api/auth' });
+
+      await dbService.createAuditLog({
+        orderId: 'SEC-REUSE-DETECTED',
+        actionDescription: `REFRESH_REUSE_DETECTED: Revoked token replayed for user ${record.userId}. Revoked family ${record.familyId}.`,
+        userId: record.userId,
+        userName: 'SYSTEM_SECURITY',
+        userRole: 'ADMIN',
+      });
+
+      return res.status(401).json({
+        code: 'REFRESH_TOKEN_REUSE_DETECTED',
+        message: 'Security alert: Refresh token reuse detected. All sessions in this family have been revoked.',
+      });
+    }
+
+    // Check expiry (7 days)
+    if (new Date(record.expiresAt).getTime() <= Date.now()) {
+      res.clearCookie(REFRESH_COOKIE_NAME, { path: '/api/auth' });
+      return res.status(401).json({ message: 'Refresh token has expired. Please sign in again.' });
+    }
+
+    // Load user and verify active status
+    const user = await dbService.getUserById(record.userId);
+    if (!user || user.active === false) {
+      res.clearCookie(REFRESH_COOKIE_NAME, { path: '/api/auth' });
+      return res.status(401).json({ message: 'User account is deactivated or not found.' });
+    }
+
+    // Valid rotation: generate new refresh token in the SAME family
+    const newRawToken = generateRawRefreshToken();
+    const newTokenHash = hashRefreshToken(newRawToken);
+    const newRecord: RefreshTokenRecord = {
+      id: `RT-${Date.now()}-${crypto.randomBytes(6).toString('hex')}`,
+      userId: user.id,
+      tokenHash: newTokenHash,
+      familyId: record.familyId,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      createdAt: new Date().toISOString(),
+      ip: clientIp,
+      userAgent: (req.headers['user-agent'] as string) || undefined,
+    };
+
+    await dbService.createRefreshToken(newRecord);
+    await dbService.revokeRefreshToken(record.id, newRecord.id);
+
+    // Set rotated cookie
+    res.cookie(REFRESH_COOKIE_NAME, newRawToken, getRefreshCookieOptions());
+
+    // Issue fresh 15-minute access token
+    const accessToken = generateToken(user);
+
+    res.json({
+      accessToken,
+      token: accessToken,
+      user,
+    });
+  } catch (err: any) {
+    console.error('Refresh error:', err);
+    res.status(500).json({ message: err.message || 'Token refresh failed' });
+  }
+});
+
+// POST Logout (revoke current token family, clear cookie, return 204 - works even if access token is expired)
+app.post('/api/auth/logout', validateCsrfOrigin, async (req, res) => {
+  try {
+    const rawRefreshToken = req.cookies?.[REFRESH_COOKIE_NAME] || (req.cookies as any)?.refreshToken;
+    if (rawRefreshToken && typeof rawRefreshToken === 'string') {
+      const tokenHash = hashRefreshToken(rawRefreshToken.trim());
+      const record = await dbService.findRefreshTokenByHash(tokenHash);
+      if (record) {
+        await dbService.revokeRefreshTokenFamily(record.familyId);
+      }
+    }
+    res.clearCookie(REFRESH_COOKIE_NAME, { path: '/api/auth' });
+    return res.status(204).end();
+  } catch (err: any) {
+    console.error('Logout error:', err);
+    res.clearCookie(REFRESH_COOKIE_NAME, { path: '/api/auth' });
+    return res.status(204).end();
+  }
+});
+
+// POST Logout-All (requireAuth: revokes all user families and increments tokenVersion)
+app.post('/api/auth/logout-all', validateCsrfOrigin, requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    await dbService.revokeAllUserRefreshTokens(userId);
+    await dbService.incrementTokenVersion(userId);
+    res.clearCookie(REFRESH_COOKIE_NAME, { path: '/api/auth' });
+
+    await dbService.createAuditLog({
+      orderId: 'SEC-LOGOUT-ALL',
+      actionDescription: `LOGOUT_ALL: Revoked all refresh families and incremented tokenVersion for user ${req.user!.name} (${req.user!.email}).`,
+      userId,
+      userName: req.user!.name,
+      userRole: req.user!.role,
+    });
+
+    res.json({ message: 'All active sessions have been revoked.' });
+  } catch (err: any) {
+    console.error('Logout-all error:', err);
+    res.status(500).json({ message: err.message || 'Logout-all failed' });
+  }
+});
+
+// POST Change Password (requireAuth, clears mustChangePassword, enforces strong password policy, rotates session)
+app.post('/api/auth/change-password', validateCsrfOrigin, requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required.' });
+    }
+
+    const parseResult = ChangePasswordSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({
+        message: 'Password validation failed.',
+        errors: parseResult.error.issues.map(e => e.message),
+      });
+    }
+
+    const { currentPassword, newPassword } = parseResult.data;
+
+    // Fetch user with existing password hash
+    const userWithHash = await dbService.getUserByEmailWithPassword(req.user.email);
+    if (!userWithHash) {
+      return res.status(404).json({ message: 'User account not found.' });
+    }
+
+    // Verify current password
+    const isCurrentMatch = await comparePassword(currentPassword, userWithHash.passwordHash);
+    if (!isCurrentMatch) {
+      return res.status(400).json({ message: 'Current password is incorrect.' });
+    }
+
+    // Validate new password against user context (cannot match email or name)
+    const userPolicyCheck = validatePasswordAgainstUser(newPassword, {
+      email: userWithHash.email,
+      name: userWithHash.name,
+    });
+    if (!userPolicyCheck.valid) {
+      return res.status(400).json({ message: userPolicyCheck.error });
+    }
+
+    // Update password with bcrypt cost 12 and clear mustChangePassword
+    // dbService.updateUser automatically increments tokenVersion!
+    const updatedUser = await dbService.updateUser(userWithHash.id, {
+      password: newPassword,
+      mustChangePassword: false,
+    });
+
+    // Revoke old refresh tokens for this user
+    await dbService.revokeAllUserRefreshTokens(updatedUser.id);
+
+    // Issue updated token reflecting new tokenVersion and mustChangePassword = false
+    const token = generateToken(updatedUser);
+
+    // Set fresh refresh cookie
+    const clientIp = req.ip || (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || '127.0.0.1';
+    const rawRefreshToken = generateRawRefreshToken();
+    const tokenHash = hashRefreshToken(rawRefreshToken);
+    const familyId = `FAM-${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
+    const refreshTokenRecord: RefreshTokenRecord = {
+      id: `RT-${Date.now()}-${crypto.randomBytes(6).toString('hex')}`,
+      userId: updatedUser.id,
+      tokenHash,
+      familyId,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      createdAt: new Date().toISOString(),
+      ip: clientIp,
+      userAgent: (req.headers['user-agent'] as string) || undefined,
+    };
+    await dbService.createRefreshToken(refreshTokenRecord);
+    res.cookie(REFRESH_COOKIE_NAME, rawRefreshToken, getRefreshCookieOptions());
+
+    await dbService.createAuditLog({
+      orderId: 'SEC-PWD-CHANGE',
+      actionDescription: `PASSWORD_CHANGED: User ${updatedUser.name} (${updatedUser.email}) successfully changed password and cleared forced-change requirement.`,
+      userId: updatedUser.id,
+      userName: updatedUser.name,
+      userRole: updatedUser.role,
+    });
+
+    res.json({
+      message: 'Password changed successfully.',
+      user: updatedUser,
+      token,
+      accessToken: token,
+    });
+  } catch (err: any) {
+    console.error('Password change error:', err);
+    res.status(500).json({ message: err.message || 'Failed to change password.' });
   }
 });
 
@@ -244,71 +591,55 @@ app.get('/api/auth/me', requireAuth, async (req: AuthenticatedRequest, res) => {
   }
 });
 
-// POST Quick Session establishment (Demo / Role Switch / Reconnect)
-app.post('/api/auth/quick-session', async (req, res) => {
-  try {
-    const { role, email } = req.body || {};
-    let targetUser: User | null = null;
-
-    if (email) {
-      targetUser = await dbService.getUserByEmail(email);
-    }
-
-    if (!targetUser && role) {
-      const allUsers = await dbService.getAllUsers();
-      targetUser = allUsers.find(u => u.role === role) || null;
-    }
-
-    if (!targetUser) {
-      // Default to Master Admin nsansvester89@gmail.com
-      targetUser = await dbService.getUserByEmail('nsansvester89@gmail.com');
-      if (!targetUser) {
-        const allUsers = await dbService.getAllUsers();
-        targetUser = allUsers.find(u => u.role === 'ADMIN') || allUsers[0] || null;
-      }
-    }
-
-    if (!targetUser) {
-      return res.status(404).json({ message: 'No suitable user account found for session initialization.' });
-    }
-
-    const token = generateToken(targetUser);
-    res.json({
-      token,
-      user: targetUser,
-      message: `Session established for ${targetUser.name} (${targetUser.role})`,
-    });
-  } catch (err: any) {
-    console.error('[Auth] Error establishing quick session:', err);
-    res.status(500).json({ message: err.message || 'Failed to establish session' });
-  }
-});
-
 // ==========================================
 // ORGANIZATION / FACILITY ENDPOINTS
 // ==========================================
 
-// GET All Facilities & Organizations
-app.get('/api/organizations', async (req, res) => {
+// GET Facilities & Organizations (requireAuth: Admins see all, non-admins see only their own organization)
+app.get('/api/organizations', requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
-    const orgs = await dbService.getAllOrganizations();
-    res.json(orgs);
+    const user = req.user!;
+    const allOrgs = await dbService.getAllOrganizations();
+
+    // Regional Dispatchers and Admins can view all facility listings
+    if (user.role === 'ADMIN' || user.role === 'DISPATCHER') {
+      return res.json(allOrgs);
+    }
+
+    // Non-admins (Clinics, Labs, Staff): strictly scoped to their own registered facility
+    const userOrgId = user.organizationId;
+    const userOrgName = (user.organization || '').toLowerCase().trim();
+    const userContract = (user.contractNumber || '').toLowerCase().trim();
+
+    const filtered = allOrgs.filter(org => {
+      if (userOrgId && org.id === userOrgId) return true;
+      if (userOrgName && org.name.toLowerCase() === userOrgName) return true;
+      if (userContract && org.contractNumber && org.contractNumber.toLowerCase() === userContract) return true;
+      return false;
+    });
+
+    res.json(filtered);
   } catch (err: any) {
     res.status(500).json({ message: err.message || 'Failed to fetch organizations' });
   }
 });
 
-// POST Upsert Facility / Organization
+// POST Upsert Facility / Organization (requireAdmin + Strict Schema)
 app.post('/api/organizations', requireAdmin, async (req: AuthenticatedRequest, res) => {
   try {
-    const { name, type, contractNumber, addressStreet, postalCode, city, state, contactPhone, contactEmail } = req.body || {};
-    if (!name || typeof name !== 'string' || name.trim().length < 2) {
-      return res.status(400).json({ message: 'Facility name must be at least 2 characters.' });
+    const parseResult = UpsertOrganizationSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({
+        message: 'Validation failed for facility payload.',
+        errors: parseResult.error.flatten(),
+      });
     }
+
+    const { name, type, contractNumber, addressStreet, postalCode, city, state, contactPhone, contactEmail } = parseResult.data;
 
     const org = await dbService.upsertOrganization({
       name: name.trim(),
-      type: type || 'CLINIC',
+      type,
       contractNumber: contractNumber?.trim() || undefined,
       addressStreet: addressStreet?.trim(),
       postalCode: postalCode?.trim(),
@@ -339,8 +670,8 @@ app.post('/api/organizations', requireAdmin, async (req: AuthenticatedRequest, r
 // USER MANAGEMENT ENDPOINTS (Admin Only)
 // ==========================================
 
-// GET All Users
-app.get('/api/users', requireAuth, async (req: AuthenticatedRequest, res) => {
+// GET All Users (requireAdmin: Only Administrators and Dispatchers can list user directory)
+app.get('/api/users', requireAdmin, async (req: AuthenticatedRequest, res) => {
   try {
     const users = await dbService.getAllUsers();
     res.json(users);
@@ -349,7 +680,28 @@ app.get('/api/users', requireAuth, async (req: AuthenticatedRequest, res) => {
   }
 });
 
-// POST Create User
+// GET Single User by ID (Self or Admin/Dispatcher only)
+app.get('/api/users/:id', requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    const currentUser = req.user!;
+
+    if (currentUser.role !== 'ADMIN' && currentUser.role !== 'DISPATCHER' && currentUser.id !== id) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const user = await dbService.getUserById(id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({ user });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message || 'Failed to retrieve user' });
+  }
+});
+
+// POST Create User (requireAdmin + Strict Schema)
 app.post('/api/users', requireAdmin, async (req: AuthenticatedRequest, res) => {
   try {
     const parseResult = CreateUserSchema.safeParse(req.body);
@@ -386,11 +738,18 @@ app.post('/api/users', requireAdmin, async (req: AuthenticatedRequest, res) => {
   }
 });
 
-// PATCH Update User
+// PATCH Update User (requireAdmin + Strict Schema)
 app.patch('/api/users/:id', requireAdmin, async (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const parseResult = UpdateUserSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({
+        message: 'Validation failed for user update payload.',
+        errors: parseResult.error.flatten(),
+      });
+    }
+    const updates = parseResult.data;
 
     const updatedUser = await dbService.updateUser(id, updates);
     if (!updatedUser) {
@@ -414,11 +773,18 @@ app.patch('/api/users/:id', requireAdmin, async (req: AuthenticatedRequest, res)
   }
 });
 
-// PUT Update User (Alias for PATCH / toggle status)
+// PUT Update User (Alias for PATCH / toggle status with requireAdmin + Strict Schema)
 app.put('/api/users/:id', requireAdmin, async (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const parseResult = UpdateUserSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({
+        message: 'Validation failed for user update payload.',
+        errors: parseResult.error.flatten(),
+      });
+    }
+    const updates = parseResult.data;
 
     const updatedUser = await dbService.updateUser(id, updates);
     if (!updatedUser) {
@@ -442,7 +808,7 @@ app.put('/api/users/:id', requireAdmin, async (req: AuthenticatedRequest, res) =
   }
 });
 
-// DELETE User
+// DELETE User (requireAdmin)
 app.delete('/api/users/:id', requireAdmin, async (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params;
@@ -481,17 +847,46 @@ app.get('/api/orders', requireAuth, async (req: AuthenticatedRequest, res) => {
       user.contractNumber
     );
 
-    // Sanitize order payloads based on the requester's role (strip sensitive pricing from drivers/labs)
-    const sanitized = orders.map(o => sanitizeOrderForRole(o, user.role));
+    // Sanitize and filter order payloads based on the requester's legitimate need-to-know access
+    const sanitized = orders
+      .filter(o => canAccessOrder(user, o))
+      .map(o => sanitizeOrderForRole(o, user.role));
     res.json(sanitized);
   } catch (err: any) {
     res.status(500).json({ message: err.message || 'Error fetching orders' });
   }
 });
 
+// In-memory rate limiting map for public tracking lookups
+const trackingRateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkTrackingRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const windowMs = 60 * 1000;
+  const maxRequests = 30;
+
+  const record = trackingRateLimitMap.get(ip);
+  if (!record || record.resetAt < now) {
+    trackingRateLimitMap.set(ip, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+
+  if (record.count >= maxRequests) {
+    return false;
+  }
+
+  record.count += 1;
+  return true;
+}
+
 // GET Public Tracking Milestones (External/Unauthenticated Inquiry - Zero medical details leaked)
 app.get('/api/orders/track/:trackingNumber', async (req, res) => {
   try {
+    const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+    if (!checkTrackingRateLimit(clientIp)) {
+      return res.status(429).json({ message: 'Too many tracking requests. Please try again later.' });
+    }
+
     const order = await dbService.getOrderById(req.params.trackingNumber);
     if (!order) {
       return res.status(404).json({ message: 'No shipment found for this tracking number.' });
@@ -504,23 +899,13 @@ app.get('/api/orders/track/:trackingNumber', async (req, res) => {
   }
 });
 
-// GET Order by ID (Least Privilege Diagnostic Sample Protection)
+// GET Order by ID (Least Privilege Diagnostic Sample Protection - Returns 404 on unauthorized)
 app.get('/api/orders/:id', requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
     const order = await dbService.getOrderById(req.params.id);
-    if (!order) {
+    if (!order || !canAccessOrder(user, order)) {
       return res.status(404).json({ message: 'Order not found' });
-    }
-
-    // Validate if the authenticated user has legitimate need-to-know access
-    if (!canUserAccessOrder(user, order)) {
-      return res.status(403).json({
-        message: 'Access Denied: Least Privilege Policy prevents your account from accessing this diagnostic sample record.',
-        orderId: order.id,
-        userRole: user.role,
-        userOrg: user.organization || 'Unspecified',
-      });
     }
 
     const sanitized = sanitizeOrderForRole(order, user.role);
@@ -603,15 +988,20 @@ app.post('/api/orders/:id/transition', requireAuth, async (req: AuthenticatedReq
     const { targetStatus, context, coords, deviceId } = parseResult.data;
 
     const existingOrder = await dbService.getOrderById(id);
-    if (!existingOrder) {
+    if (!existingOrder || !canAccessOrder(user, existingOrder)) {
       return res.status(404).json({ message: 'Order not found.' });
     }
 
     // Role-specific action validation (Principle of Least Privilege)
     if (user.role === 'DRIVER') {
-      if (existingOrder.driverId && existingOrder.driverId !== user.id) {
+      if (targetStatus === 'CANCELLED' || targetStatus === 'QUARANTINED_UNSYNCED') {
         return res.status(403).json({
-          message: 'Access Denied: You cannot transition an order assigned to another courier.',
+          message: 'Access Denied: Drivers cannot directly cancel or quarantine orders.',
+        });
+      }
+      if (existingOrder.driverId && existingOrder.driverId !== user.id) {
+        return res.status(404).json({
+          message: 'Order not found.',
         });
       }
       if (!existingOrder.driverId && targetStatus === 'PRE_TRIP_CHECK') {
@@ -625,8 +1015,10 @@ app.post('/api/orders/:id/transition', requireAuth, async (req: AuthenticatedReq
           message: 'Client Clinics and Origin Staff can only request order cancellation prior to courier pickup.',
         });
       }
-      if (!canUserAccessOrder(user, existingOrder)) {
-        return res.status(403).json({ message: 'Access Denied: Order does not belong to your clinic.' });
+      if (existingOrder.status !== 'SCHEDULED' && existingOrder.status !== 'PRE_TRIP_CHECK') {
+        return res.status(403).json({
+          message: 'Cannot cancel an order that is already in transit or delivered.',
+        });
       }
     } else if (user.role === 'LAB_STAFF' || (user.role === 'ORG_STAFF' && user.facilityType === 'LABORATORY')) {
       if (targetStatus !== 'DELIVERED') {
@@ -634,9 +1026,10 @@ app.post('/api/orders/:id/transition', requireAuth, async (req: AuthenticatedReq
           message: 'Laboratory staff can only confirm specimen arrival and delivery acceptance.',
         });
       }
-      if (!canUserAccessOrder(user, existingOrder)) {
-        return res.status(403).json({ message: 'Access Denied: Sample is not routed to your laboratory.' });
-      }
+    } else if (user.role !== 'ADMIN' && user.role !== 'DISPATCHER') {
+      return res.status(403).json({
+        message: 'Access Denied: Unauthorized role for order state transitions.',
+      });
     }
 
     // Quarantine clearance context for dispatchers
@@ -733,13 +1126,13 @@ app.post('/api/orders/:id/claim', requireRole('DRIVER', 'DISPATCHER', 'ADMIN'), 
     const { id } = req.params;
 
     const order = await dbService.getOrderById(id);
-    if (!order) {
+    if (!order || !canAccessOrder(user, order)) {
       return res.status(404).json({ message: 'Order not found.' });
     }
 
     if (order.driverId && order.driverId !== user.id && user.role === 'DRIVER') {
-      return res.status(400).json({
-        message: `Order is already claimed by courier ${order.driverName || order.driverId}.`,
+      return res.status(404).json({
+        message: 'Order not found.',
       });
     }
 
@@ -774,10 +1167,17 @@ app.post('/api/orders/:id/claim', requireRole('DRIVER', 'DISPATCHER', 'ADMIN'), 
 app.patch('/api/orders/:id', requireRole('ADMIN', 'DISPATCHER'), async (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const parseResult = PatchOrderSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({
+        message: 'Validation failed for order update payload.',
+        errors: parseResult.error.flatten(),
+      });
+    }
+    const updates = parseResult.data;
 
     const existingOrder = await dbService.getOrderById(id);
-    if (!existingOrder) {
+    if (!existingOrder || !canAccessOrder(req.user!, existingOrder)) {
       return res.status(404).json({ message: 'Order not found' });
     }
 
@@ -813,12 +1213,31 @@ app.patch('/api/orders/:id', requireRole('ADMIN', 'DISPATCHER'), async (req: Aut
 // POST Pre-Trip Checklist
 app.post('/api/orders/:id/pre-trip-check', requireRole('DRIVER', 'DISPATCHER', 'ADMIN'), async (req: AuthenticatedRequest, res) => {
   try {
+    const user = req.user!;
     const { id } = req.params;
-    const checkData: PreTripCheck = req.body;
+    const parseResult = PreTripCheckSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({
+        message: 'Validation failed for pre-trip check payload.',
+        errors: parseResult.error.flatten(),
+      });
+    }
+    const checkData = parseResult.data;
 
     const order = await dbService.getOrderById(id);
-    if (!order) {
+    if (!order || !canAccessOrder(user, order)) {
       return res.status(404).json({ message: 'Order not found' });
+    }
+
+    if (user.role === 'DRIVER') {
+      if (order.driverId && order.driverId !== user.id) {
+        return res.status(404).json({ message: 'Order not found' });
+      }
+      if (!order.driverId) {
+        order.driverId = user.id;
+        order.driverName = user.name;
+        if (user.vehicleRegNumber) order.vehicleRegNumber = user.vehicleRegNumber;
+      }
     }
 
     if (!checkData.approved) {
@@ -827,8 +1246,9 @@ app.post('/api/orders/:id/pre-trip-check', requireRole('DRIVER', 'DISPATCHER', '
       });
     }
 
-    order.preTripCheck = checkData;
+    order.preTripCheck = checkData as any;
     order.status = 'PRE_TRIP_CHECK';
+    order.updatedAt = new Date().toISOString();
 
     const updated = await dbService.updateOrder(id, order);
 
@@ -837,12 +1257,12 @@ app.post('/api/orders/:id/pre-trip-check', requireRole('DRIVER', 'DISPATCHER', '
       previousState: 'SCHEDULED',
       newState: 'PRE_TRIP_CHECK',
       actionDescription: `PRE_TRIP_CHECK_COMPLETED: Vehicle ${checkData.vehicleRegNumber}`,
-      userId: req.user?.id || 'USR-DRIVER-01',
-      userName: checkData.vehicleRegNumber || req.user?.name || 'Driver',
+      userId: user.id,
+      userName: checkData.vehicleRegNumber || user.name || 'Driver',
       userRole: 'DRIVER',
     });
 
-    res.json(sanitizeOrderForRole(updated || order, req.user!.role));
+    res.json(sanitizeOrderForRole(updated || order, user.role));
   } catch (err: any) {
     res.status(500).json({ message: err.message || 'Error saving pre-trip inspection' });
   }
@@ -851,54 +1271,70 @@ app.post('/api/orders/:id/pre-trip-check', requireRole('DRIVER', 'DISPATCHER', '
 // POST Handover / Chain of Custody Signature Sign-off
 app.post('/api/orders/:id/chain-of-custody', requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
+    const user = req.user!;
     const { id } = req.params;
-    const log: ChainOfCustody = req.body;
+    const parseResult = CustodySignOffSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({
+        message: 'Validation failed for chain-of-custody payload.',
+        errors: parseResult.error.flatten(),
+      });
+    }
+    const log = parseResult.data;
 
     const order = await dbService.getOrderById(id);
-    if (!order) {
+    if (!order || !canAccessOrder(user, order)) {
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    if (!canUserAccessOrder(req.user!, order)) {
-      return res.status(403).json({ message: 'Access Denied: You cannot sign for this specimen.' });
-    }
-
-    const updated = await dbService.appendChainOfCustody(id, log);
+    const updated = await dbService.appendChainOfCustody(id, log as any);
 
     await dbService.createAuditLog({
       orderId: id,
       actionDescription: `SIGNATURE_ACQUIRED_${log.eventType}: ${log.staffName}`,
-      userId: req.user?.id || 'HANDOVER_PARTY',
+      userId: user.id,
       userName: log.staffName,
-      userRole: req.user?.role || 'DISPATCHER',
+      userRole: user.role,
     });
 
-    res.json(sanitizeOrderForRole(updated || order, req.user!.role));
+    res.json(sanitizeOrderForRole(updated || order, user.role));
   } catch (err: any) {
     res.status(500).json({ message: err.message || 'Error signing chain of custody' });
   }
 });
 
-// POST Temperature Telemetry
-app.post('/api/orders/:id/temperature', async (req, res) => {
+// POST Temperature Telemetry (Authenticated & Authorized Couriers/Dispatchers/Admins Only)
+app.post('/api/orders/:id/temperature', requireRole('DRIVER', 'DISPATCHER', 'ADMIN'), async (req: AuthenticatedRequest, res) => {
   try {
+    const user = req.user!;
     const { id } = req.params;
-    const telemetry: TemperatureTelemetry = req.body;
+    const parseResult = TemperatureTelemetrySchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({
+        message: 'Validation failed for temperature telemetry payload.',
+        errors: parseResult.error.flatten(),
+      });
+    }
+    const telemetry = parseResult.data;
 
     const order = await dbService.getOrderById(id);
-    if (!order) {
+    if (!order || !canAccessOrder(user, order)) {
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    const updated = await dbService.appendTemperatureReading(id, telemetry);
+    if (user.role === 'DRIVER' && order.driverId && order.driverId !== user.id) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    const updated = await dbService.appendTemperatureReading(id, telemetry as any);
 
     if (telemetry.isBreach) {
       await dbService.createAuditLog({
         orderId: id,
         actionDescription: `TEMPERATURE_BREACH_ALERT: ${telemetry.tempCelsius}°C recorded by ${telemetry.sensorId}`,
-        userId: 'TELEMETRY_BLE_IOT',
-        userName: `Sensor ${telemetry.sensorId || 'GENERIC'}`,
-        userRole: 'DISPATCHER',
+        userId: user.id,
+        userName: `Sensor ${telemetry.sensorId || 'GENERIC'} (${user.name})`,
+        userRole: user.role,
       });
     }
 
@@ -923,8 +1359,9 @@ app.get('/api/audit-logs', requireRole('ADMIN', 'DISPATCHER'), async (req: Authe
 // ==========================================
 // DETERMINISTIC OFFLINE QUEUE SYNC ENDPOINT (/api/v1/sync, /api/sync, /api/sync-offline)
 // ==========================================
-app.post(['/api/v1/sync', '/api/sync', '/api/sync-offline'], optionalAuth, async (req: AuthenticatedRequest, res) => {
+app.post(['/api/v1/sync', '/api/sync', '/api/sync-offline'], requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
+    const user = req.user!;
     const rawAction = req.body;
     const parseResult = OfflineSyncItemSchema.safeParse(rawAction);
     if (!parseResult.success) {
@@ -936,7 +1373,7 @@ app.post(['/api/v1/sync', '/api/sync', '/api/sync-offline'], optionalAuth, async
 
     const action = parseResult.data;
     const order = await dbService.getOrderById(action.orderId);
-    if (!order) {
+    if (!order || !canAccessOrder(user, order)) {
       return res.status(404).json({
         results: [{ id: action.id, status: 'REJECTED_NOT_FOUND', message: `Order ${action.orderId} not found.` }],
       });
@@ -957,9 +1394,9 @@ app.post(['/api/v1/sync', '/api/sync', '/api/sync-offline'], optionalAuth, async
         newState: order.status,
         conflictResolution: 'REJECTED_STALE',
         actionDescription: `STALE_OFFLINE_ACTION_REJECTED: ${action.actionType} recorded at ${clientTime}`,
-        userId: req.user?.id || 'USR-DRIVER-01',
-        userName: req.user?.name || 'Courier (Offline Queue)',
-        userRole: req.user?.role || 'DRIVER',
+        userId: user.id,
+        userName: `${user.name} (Offline Queue)`,
+        userRole: user.role,
         deviceId: action.deviceId || 'MOB-DRIVER-OFFLINE',
         gpsLatitude: action.gpsLatitude || 50.1109,
         gpsLongitude: action.gpsLongitude || 8.6821,
@@ -981,7 +1418,7 @@ app.post(['/api/v1/sync', '/api/sync', '/api/sync-offline'], optionalAuth, async
     }
 
     // 2. Conflict Check: Concurrent Different Driver Collision (QUARANTINED_UNSYNCED)
-    if (order.driverId && req.user?.id && order.driverId !== req.user.id && req.user.role === 'DRIVER') {
+    if (order.driverId && order.driverId !== user.id && user.role === 'DRIVER') {
       order.status = 'QUARANTINED_UNSYNCED';
       order.quarantineReason = `Driver collision: Device ${action.deviceId || 'unknown'} uploaded action while order is claimed by ${order.driverName || order.driverId}.`;
       order.updatedAt = nowIso;
@@ -993,9 +1430,9 @@ app.post(['/api/v1/sync', '/api/sync', '/api/sync-offline'], optionalAuth, async
         newState: 'QUARANTINED_UNSYNCED',
         conflictResolution: 'SERVER_WINS',
         actionDescription: `QUARANTINE_TRIGGERED: Driver device mismatch during sync`,
-        userId: req.user.id,
-        userName: req.user.name,
-        userRole: req.user.role,
+        userId: user.id,
+        userName: user.name,
+        userRole: user.role,
         deviceId: action.deviceId || 'MOB-DRIVER-OFFLINE',
         gpsLatitude: action.gpsLatitude || 50.1109,
         gpsLongitude: action.gpsLongitude || 8.6821,
@@ -1022,9 +1459,9 @@ app.post(['/api/v1/sync', '/api/sync', '/api/sync-offline'], optionalAuth, async
       orderId: order.id,
       eventType: action.actionType.includes('DELIVER') ? 'DELIVERY_SIGNATURE' : 'PICKUP_SIGNATURE',
       authTier: 'TIER_1_REGISTERED_USER_PIN',
-      staffName: action.payload?.signatoryName || 'Offline Signatory',
-      staffTitle: action.payload?.signatoryRole || 'Staff',
-      signatureBase64: action.payload?.signatureDataUrl || action.payload?.signatureBase64 || '',
+      staffName: (action.payload?.signatoryName as string) || 'Offline Signatory',
+      staffTitle: (action.payload?.signatoryRole as string) || 'Staff',
+      signatureBase64: (action.payload?.signatureDataUrl as string) || (action.payload?.signatureBase64 as string) || '',
       cryptoSignature: action.cryptoSignature || undefined,
       pinCodeVerified: true,
       scannedBarcodes: order.barcodeList || [],
@@ -1049,9 +1486,9 @@ app.post(['/api/v1/sync', '/api/sync', '/api/sync-offline'], optionalAuth, async
       newState: targetStatus,
       conflictResolution: 'SERVER_WINS',
       actionDescription: `Synced offline driver action (${action.actionType}) recorded at ${clientTime}.`,
-      userId: req.user?.id || 'USR-DRIVER-01',
-      userName: `${req.user?.name || 'Courier'} (Offline Sync)`,
-      userRole: req.user?.role || 'DRIVER',
+      userId: user.id,
+      userName: `${user.name} (Offline Sync)`,
+      userRole: user.role,
       deviceId: action.deviceId || 'MOB-DRIVER-OFFLINE',
       gpsLatitude: action.gpsLatitude || 50.1109,
       gpsLongitude: action.gpsLongitude || 8.6821,
@@ -1069,7 +1506,7 @@ app.post(['/api/v1/sync', '/api/sync', '/api/sync-offline'], optionalAuth, async
   }
 });
 
-// CEO Email Forwarding Configuration
+// CEO Email Forwarding Configuration (ADMIN Only)
 let ceoEmailForwardingConfig = {
   ceoEmail: 'dispatch@medigo-hessen.de',
   ceoName: 'Katrin Weber (CEO & Dispatch Director)',
@@ -1082,21 +1519,37 @@ let ceoEmailForwardingConfig = {
   lastUpdated: new Date().toISOString(),
 };
 
-app.get('/api/ceo/email-forwarding', (req, res) => {
+app.get('/api/ceo/email-forwarding', requireRole('ADMIN'), (req: AuthenticatedRequest, res) => {
   res.json(ceoEmailForwardingConfig);
 });
 
-app.post('/api/ceo/email-forwarding', (req, res) => {
+app.post('/api/ceo/email-forwarding', requireRole('ADMIN'), (req: AuthenticatedRequest, res) => {
+  const parseResult = CeoEmailForwardingSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    return res.status(400).json({
+      message: 'Validation failed for email forwarding configuration payload.',
+      errors: parseResult.error.flatten(),
+    });
+  }
+
   ceoEmailForwardingConfig = {
     ...ceoEmailForwardingConfig,
-    ...req.body,
+    ...parseResult.data,
     lastUpdated: new Date().toISOString(),
   };
   res.json({ message: 'CEO Email forwarding rules updated', config: ceoEmailForwardingConfig });
 });
 
-app.post('/api/ceo/email-forwarding/test-send', (req, res) => {
-  const { targetEmail } = req.body;
+app.post('/api/ceo/email-forwarding/test-send', requireRole('ADMIN'), (req: AuthenticatedRequest, res) => {
+  const parseResult = CeoTestSendSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    return res.status(400).json({
+      message: 'Validation failed for test send payload.',
+      errors: parseResult.error.flatten(),
+    });
+  }
+
+  const { targetEmail } = parseResult.data;
   const recipient = targetEmail || ceoEmailForwardingConfig.ceoEmail;
   res.json({
     success: true,
@@ -1113,16 +1566,21 @@ app.all('/api/*', (req, res) => {
   });
 });
 
-// Global API Error Handler (ensures errors are always returned as JSON)
+// Global API Error Handler (ensures errors are always returned as JSON and internal stack traces/database details never leak in production)
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('[API Error]:', err);
   if (res.headersSent) {
     return next(err);
   }
-  const statusCode = typeof err.status === 'number' ? err.status : 500;
+  const statusCode = typeof err.status === 'number' ? err.status : (typeof err.statusCode === 'number' ? err.statusCode : 500);
+  const isProd = process.env.NODE_ENV === 'production';
+  const message = statusCode >= 500 && isProd
+    ? 'An unexpected internal server error occurred'
+    : (err.message || 'An unexpected internal server error occurred');
+
   res.status(statusCode).json({
-    message: err.message || 'An unexpected internal server error occurred',
-    error: process.env.NODE_ENV !== 'production' ? err.stack : undefined,
+    message,
+    ...(isProd ? {} : { error: err.stack }),
   });
 });
 

@@ -38,9 +38,10 @@ function extractCity(address?: string): string {
 
 /**
  * Check if an authenticated user has permission to access a specific sample order.
+ * Strictly enforces organizational boundary isolation under GDPR Art. 9 & German Medical Secrecy.
  */
-export function canUserAccessOrder(user: TokenPayload, order: Order): boolean {
-  if (!user) return false;
+export function canAccessOrder(user: TokenPayload, order: Order): boolean {
+  if (!user || !order) return false;
 
   // 1. Central Dispatchers and Administrators have regional oversight over all orders
   if (user.role === 'ADMIN' || user.role === 'DISPATCHER') {
@@ -49,27 +50,30 @@ export function canUserAccessOrder(user: TokenPayload, order: Order): boolean {
 
   // 2. Organization Staff (Clinics, Hospitals, Labs, Pharmacies)
   if (user.role === 'ORG_STAFF' || user.role === 'CLIENT_CLINIC' || user.role === 'LAB_STAFF') {
+    const isLab = user.facilityType === 'LABORATORY' || user.role === 'LAB_STAFF';
+
     // Primary: Organization ID foreign key match
     if (user.organizationId) {
-      if (order.originOrganizationId === user.organizationId || order.destinationOrgId === user.organizationId) {
-        return true;
+      if (isLab) {
+        if (order.destinationOrgId) return order.destinationOrgId === user.organizationId;
+      } else {
+        if (order.originOrganizationId) return order.originOrganizationId === user.organizationId;
       }
     }
 
-    // Secondary / Fallback: Organization name and contract matches
+    // Secondary / Fallback (when organizationId is not populated on legacy records):
     const userOrg = (user.organization || '').toLowerCase().trim();
-    const userContract = (user.contractNumber || '').toLowerCase().trim();
+    if (!userOrg) return false;
 
-    if (user.facilityType === 'LABORATORY' || user.role === 'LAB_STAFF') {
-      const labMatch = userOrg && order.deliveryLabName.toLowerCase().includes(userOrg);
-      const contractMatch = userContract && ((order.specialNotes || '').toLowerCase().includes(userContract));
-      return Boolean(labMatch || contractMatch);
+    if (isLab) {
+      return order.deliveryLabName.toLowerCase().trim() === userOrg ||
+        order.deliveryLabName.toLowerCase().includes(userOrg);
     } else {
-      const clinicMatch = userOrg && order.pickupClinicName.toLowerCase().includes(userOrg);
-      const creatorOrgMatch = userOrg && (order.createdByOrg || '').toLowerCase().includes(userOrg);
+      const clinicMatch = order.pickupClinicName.toLowerCase().trim() === userOrg ||
+        order.pickupClinicName.toLowerCase().includes(userOrg);
+      const creatorOrgMatch = (order.createdByOrg || '').toLowerCase().trim() === userOrg;
       const creatorIdMatch = order.createdById === user.id;
-      const contractMatch = userContract && (order.trackingNumber.toLowerCase().includes(userContract) || (order.specialNotes || '').toLowerCase().includes(userContract));
-      return Boolean(clinicMatch || creatorOrgMatch || creatorIdMatch || contractMatch);
+      return Boolean(clinicMatch || creatorOrgMatch || creatorIdMatch);
     }
   }
 
@@ -87,6 +91,8 @@ export function canUserAccessOrder(user: TokenPayload, order: Order): boolean {
 
   return false;
 }
+
+export const canUserAccessOrder = canAccessOrder;
 
 /**
  * Sanitize an order based on the Principle of Least Privilege (PoLP).

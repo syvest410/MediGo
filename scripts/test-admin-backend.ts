@@ -63,7 +63,7 @@ async function runTests() {
     path: '/api/auth/login',
     body: {
       email: 'nsansvester89@gmail.com',
-      password: 'AdminPass2026!',
+      password: process.env.ADMIN_PASSWORD || 'TestAdminSecret2026!',
     },
   });
   console.log(`   Status: ${adminAuth.status}, User: ${adminAuth.data?.user?.name} (${adminAuth.data?.user?.role})`);
@@ -90,7 +90,7 @@ async function runTests() {
       email: 'invalid.clinic@hospital-hessen.de',
       name: 'Dr. med. Invalid Clinic',
       role: 'CLIENT_CLINIC',
-      password: 'SecurePass2026!',
+      password: 'TestClinicSecret2026!',
       organization: 'Privatklinik Wiesbaden',
     },
   });

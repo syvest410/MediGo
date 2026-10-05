@@ -8,11 +8,8 @@ import {
   UserCheck, 
   Key, 
   ArrowRight, 
-  FileText, 
-  Copy, 
   CheckCircle2, 
   X,
-  Share2,
   TestTube,
   Smartphone,
   Info,
@@ -38,7 +35,6 @@ interface DemoRoleInfo {
   role: Role;
   name: string;
   email: string;
-  defaultPass: string;
   pinOrContract?: string;
   org: string;
   view: 'DRIVER_MOBILE' | 'DISPATCH_DASHBOARD' | 'CLIENT_PORTAL';
@@ -52,7 +48,6 @@ const DEMO_ROLES: DemoRoleInfo[] = [
     role: 'CLIENT_CLINIC',
     name: 'Dr. Martin Hoffmann',
     email: 'probeneingang@kgu.de',
-    defaultPass: 'ClinicPass2026!',
     pinOrContract: 'CTR-2026-UKF-HE-01',
     org: 'Universitätsklinikum Frankfurt am Main',
     view: 'CLIENT_PORTAL',
@@ -72,7 +67,6 @@ const DEMO_ROLES: DemoRoleInfo[] = [
     role: 'DRIVER',
     name: 'Hans Schmidt (Kurier 104)',
     email: 'hans.schmidt@medigo-hessen.de',
-    defaultPass: 'DriverPass2026!',
     pinOrContract: '1044',
     org: 'MediGo Hessen Kurierflotte',
     view: 'DRIVER_MOBILE',
@@ -92,7 +86,6 @@ const DEMO_ROLES: DemoRoleInfo[] = [
     role: 'LAB_STAFF',
     name: 'Sabine Neumann (Laborleitung)',
     email: 'empfang@synlab-hessen.de',
-    defaultPass: 'LabPass2026!',
     pinOrContract: 'CTR-2026-SYNLAB-04',
     org: 'Synlab Medizinisches Versorgungszentrum Frankfurt',
     view: 'DISPATCH_DASHBOARD',
@@ -112,7 +105,6 @@ const DEMO_ROLES: DemoRoleInfo[] = [
     role: 'DISPATCHER',
     name: 'Katrin Weber (Dispatch Zentrale)',
     email: 'dispatch@medigo-hessen.de',
-    defaultPass: 'Dispatch2026!',
     org: 'MediGo Zentrale Wiesbaden',
     view: 'DISPATCH_DASHBOARD',
     leastPrivilegeTitle: 'Regional Logistics Command & Telemetry Ops',
@@ -130,7 +122,6 @@ const DEMO_ROLES: DemoRoleInfo[] = [
     role: 'ADMIN',
     name: 'Admin (nsansvester89)',
     email: 'nsansvester89@gmail.com',
-    defaultPass: 'AdminPass2026!',
     org: 'BioDispatch / MediGo Zentrale',
     view: 'DISPATCH_DASHBOARD',
     leastPrivilegeTitle: 'System Administrator & Compliance Officer',
@@ -156,14 +147,13 @@ export const LoginPortalModal: React.FC<LoginPortalModalProps> = ({
   const { language } = useLanguage();
   const isDe = language === 'de';
   const { login } = useAuth();
-  const [activeTab, setActiveTab] = useState<'LOGIN' | 'SIGNUP' | 'POLP_MATRIX' | 'SHARE_CREDENTIALS'>('LOGIN');
+  const [activeTab, setActiveTab] = useState<'LOGIN' | 'SIGNUP' | 'POLP_MATRIX'>('LOGIN');
   const [selectedRole, setSelectedRole] = useState<Role>('CLIENT_CLINIC');
-  const [emailInput, setEmailInput] = useState('probeneingang@kgu.de');
-  const [passwordInput, setPasswordInput] = useState('ClinicPass2026!');
+  const [emailInput, setEmailInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [copiedShare, setCopiedShare] = useState(false);
 
   // Sign Up Form States
   const [signUpName, setSignUpName] = useState('');
@@ -176,14 +166,8 @@ export const LoginPortalModal: React.FC<LoginPortalModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Sync default credentials when selecting role in form
   const handleRoleChange = (role: Role) => {
     setSelectedRole(role);
-    const demo = DEMO_ROLES.find(r => r.role === role);
-    if (demo) {
-      setEmailInput(demo.email);
-      setPasswordInput(demo.defaultPass);
-    }
   };
 
   const handleCustomLogin = async (e: React.FormEvent) => {
@@ -209,29 +193,6 @@ export const LoginPortalModal: React.FC<LoginPortalModalProps> = ({
       }
     } catch (err: any) {
       setAuthError(err.message || 'An unexpected error occurred during login.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleQuickLogin = async (demo: DemoRoleInfo) => {
-    setAuthError(null);
-    setIsSubmitting(true);
-
-    try {
-      const result = await login(demo.email, demo.defaultPass);
-      if (result.success) {
-        const matchedUser = INITIAL_USERS.find(u => u.email.toLowerCase() === demo.email.toLowerCase()) 
-          || INITIAL_USERS.find(u => u.role === demo.role) 
-          || INITIAL_USERS[0];
-
-        onSelectUser(matchedUser, demo.view);
-        onClose();
-      } else {
-        setAuthError(result.error || `Could not log in as ${demo.name}.`);
-      }
-    } catch (err: any) {
-      setAuthError(err.message || 'Login connection error.');
     } finally {
       setIsSubmitting(false);
     }
@@ -264,45 +225,6 @@ export const LoginPortalModal: React.FC<LoginPortalModalProps> = ({
       onSelectUser(newUser, preferredView);
       onClose();
     }, 1200);
-  };
-
-  const shareText = `MediGo Hessen UN 3373 Medical Logistics — Demo Credentials & Least Privilege Matrix:
-
-1. CLINIC CLIENT PORTAL (Hospital Ward & Diagnostics)
-   • Email: probeneingang@kgu.de
-   • Password: ClinicPass2026!
-   • Contract ID: CTR-2026-UKF-HE-01
-   • Least Privilege: Can ONLY access UK Frankfurt orders; invoices & patient barcodes visible; other hospitals & driver vehicle mechanics isolated.
-
-2. DRIVER MOBILE APP & LIVE COURIER MANIFEST
-   • Email: hans.schmidt@medigo-hessen.de
-   • Password: DriverPass2026!
-   • Driver PIN: 1044 (Vehicle F-MG 7741 Thermo Van)
-   • Least Privilege: Can ONLY access assigned shipments & open route board; commercial pricing & B2B margins stripped; sequential pre-trip safety checklist required.
-
-3. LABORATORY RECEIVING STAFF (Synlab MVZ Frankfurt)
-   • Email: empfang@synlab-hessen.de
-   • Password: LabPass2026!
-   • Least Privilege: Can ONLY view specimens consigned to Synlab dock; can sign arrival handover protocol; pricing & unrelated clinics restricted.
-
-4. CENTRAL DISPATCHER (Regional Hessen Fleet Operations)
-   • Email: dispatch@medigo-hessen.de
-   • Password: Dispatch2026!
-   • Least Privilege: Real-time GPS tracking, temperature spike alarms, dynamic re-routing across all Hessen hubs.
-
-5. SYSTEM ADMINISTRATOR & COMPLIANCE OFFICER
-   • Email: nsansvester89@gmail.com
-   • Password: AdminPass2026!
-   • Least Privilege: User provisioning, role-based access audit logs, tariff management, and GDPR Art. 9 / AVV compliance exports.
-
-PUBLIC TRACKING (Zero Auth Required):
-   • Route: /api/orders/track/:trackingNumber
-   • Exposes milestones & temperature safety ONLY. Strips all patient notes & commercial pricing.`;
-
-  const handleCopyShare = () => {
-    navigator.clipboard.writeText(shareText);
-    setCopiedShare(true);
-    setTimeout(() => setCopiedShare(false), 2500);
   };
 
   return (
@@ -351,7 +273,7 @@ PUBLIC TRACKING (Zero Auth Required):
             }`}
           >
             <Lock className="w-4 h-4" />
-            <span>{isDe ? '1-Klick Demo-Anmeldung' : '1-Click Sample Logins'}</span>
+            <span>{isDe ? 'Anmeldung' : 'Secure Login'}</span>
           </button>
 
           <button
@@ -377,18 +299,6 @@ PUBLIC TRACKING (Zero Auth Required):
             <UserCheck className="w-4 h-4" />
             <span>{isDe ? 'Konto registrieren' : 'Register Account'}</span>
           </button>
-
-          <button
-            onClick={() => setActiveTab('SHARE_CREDENTIALS')}
-            className={`flex-1 py-3 px-4 font-bold border-b-2 transition-all flex items-center justify-center space-x-1.5 whitespace-nowrap ${
-              activeTab === 'SHARE_CREDENTIALS'
-                ? 'border-red-500 text-red-400 bg-red-950/30'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Share2 className="w-4 h-4" />
-            <span>{isDe ? 'Zugangsdaten-Übersicht' : 'Credentials Sheet'}</span>
-          </button>
         </div>
 
         {/* Global Error Notice (e.g. rate limiting or invalid credentials) */}
@@ -410,118 +320,18 @@ PUBLIC TRACKING (Zero Auth Required):
           {activeTab === 'LOGIN' && (
             <div className="space-y-6">
               
-              {/* Role Cards with PoLP details */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
-                    Choose an Authenticated Sample Persona
-                  </label>
-                  <span className="text-[11px] text-slate-400">
-                    5-attempt brute-force protection active
-                  </span>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {DEMO_ROLES.map((demo) => {
-                    const isClient = demo.role === 'CLIENT_CLINIC';
-                    const isDriver = demo.role === 'DRIVER';
-                    const isLab = demo.role === 'LAB_STAFF';
-                    const isAdmin = demo.role === 'ADMIN';
-
-                    const badgeColor = isClient 
-                      ? 'bg-blue-950 text-blue-300 border-blue-800'
-                      : isDriver 
-                      ? 'bg-emerald-950 text-emerald-300 border-emerald-800'
-                      : isLab 
-                      ? 'bg-amber-950 text-amber-300 border-amber-800'
-                      : isAdmin 
-                      ? 'bg-purple-950 text-purple-300 border-purple-800'
-                      : 'bg-red-950 text-red-300 border-red-800';
-
-                    const icon = isClient ? <Building2 className="w-5 h-5 text-blue-400" />
-                      : isDriver ? <Truck className="w-5 h-5 text-emerald-400" />
-                      : isLab ? <TestTube className="w-5 h-5 text-amber-400" />
-                      : isAdmin ? <ShieldCheck className="w-5 h-5 text-purple-400" />
-                      : <ShieldCheck className="w-5 h-5 text-red-400" />;
-
-                    return (
-                      <div
-                        key={demo.role}
-                        onClick={() => !isSubmitting && handleQuickLogin(demo)}
-                        className={`bg-slate-950 border border-slate-800 hover:border-red-500 p-4 rounded-xl cursor-pointer transition-all hover:scale-[1.01] group space-y-3 flex flex-col justify-between ${
-                          isSubmitting ? 'opacity-60 pointer-events-none' : ''
-                        }`}
-                      >
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
-                              {icon}
-                            </div>
-                            <span className={`text-[10px] border px-2 py-0.5 rounded font-bold ${badgeColor}`}>
-                              {demo.role}
-                            </span>
-                          </div>
-
-                          <div>
-                            <h4 className="font-bold text-white text-sm group-hover:text-red-400 transition-colors">
-                              {demo.name}
-                            </h4>
-                            <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">
-                              {demo.org}
-                            </p>
-                          </div>
-
-                          <div className="bg-slate-900/90 rounded-lg p-2 text-[10px] space-y-1 border border-slate-800/80 font-mono">
-                            <div className="flex justify-between text-slate-400">
-                              <span>Login:</span>
-                              <span className="text-slate-200 font-semibold">{demo.email}</span>
-                            </div>
-                            <div className="flex justify-between text-slate-400">
-                              <span>Password:</span>
-                              <span className="text-emerald-400 font-semibold">{demo.defaultPass}</span>
-                            </div>
-                            {demo.pinOrContract && (
-                              <div className="flex justify-between text-slate-400">
-                                <span>Ref / PIN:</span>
-                                <span className="text-amber-400">{demo.pinOrContract}</span>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Least Privilege Summary */}
-                          <div className="text-[10px] text-slate-400 leading-tight border-t border-slate-900 pt-2 space-y-1">
-                            <span className="font-semibold text-slate-300 block">{demo.leastPrivilegeTitle}</span>
-                            <div className="text-emerald-400/90 flex items-center space-x-1">
-                              <span>✓</span>
-                              <span className="line-clamp-1">{demo.allowed[0]}</span>
-                            </div>
-                            <div className="text-red-400/80 flex items-center space-x-1">
-                              <span>✕</span>
-                              <span className="line-clamp-1">{demo.restricted[0]}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="pt-2 border-t border-slate-900 flex items-center justify-between text-[11px] font-semibold text-red-400">
-                          <span>1-Click Authenticate</span>
-                          <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Custom Manual Credentials Form */}
+              {/* Credentials Form */}
               <div className="bg-slate-950 border border-slate-800 p-5 rounded-xl space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                   <div>
                     <h4 className="font-bold text-sm text-white flex items-center space-x-2">
                       <Key className="w-4 h-4 text-red-400" />
-                      <span>Custom Credentials Login</span>
+                      <span>{isDe ? 'System-Anmeldung' : 'Secure Credentials Login'}</span>
                     </h4>
                     <p className="text-[11px] text-slate-400 mt-0.5">
-                      Authenticates directly against bcrypt-hashed user accounts with JWT session issuance.
+                      {isDe 
+                        ? 'Authentifiziert mit verschlüsselten Benutzerdaten gegen den Authentifizierungsdienst.' 
+                        : 'Authenticates with hashed credentials against the backend authentication service.'}
                     </p>
                   </div>
                   <span className="text-[11px] text-slate-400 font-mono">Bcrypt + JWT</span>
@@ -549,6 +359,7 @@ PUBLIC TRACKING (Zero Auth Required):
                       <input
                         type="email"
                         required
+                        placeholder="name@domain.de"
                         value={emailInput}
                         onChange={(e) => setEmailInput(e.target.value)}
                         className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-500 font-mono"
@@ -561,6 +372,7 @@ PUBLIC TRACKING (Zero Auth Required):
                         <input
                           type={showPassword ? 'text' : 'password'}
                           required
+                          placeholder="••••••••••••"
                           value={passwordInput}
                           onChange={(e) => setPasswordInput(e.target.value)}
                           className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 pr-9 text-white focus:outline-none focus:border-red-500 font-mono"
@@ -586,7 +398,7 @@ PUBLIC TRACKING (Zero Auth Required):
                       disabled={isSubmitting}
                       className="bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-bold px-6 py-2.5 rounded-xl transition-all shadow-lg flex items-center space-x-2"
                     >
-                      <span>{isSubmitting ? 'Authenticating...' : 'Sign In with Credentials'}</span>
+                      <span>{isSubmitting ? (isDe ? 'Prüfe Zugangsdaten...' : 'Authenticating...') : (isDe ? 'Im System Anmelden' : 'Sign In with Credentials')}</span>
                       <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>
@@ -808,43 +620,6 @@ PUBLIC TRACKING (Zero Auth Required):
                     </button>
                   </div>
                 </form>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'SHARE_CREDENTIALS' && (
-            <div className="space-y-4 text-xs">
-              <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <h4 className="font-bold text-sm text-white flex items-center space-x-2">
-                    <FileText className="w-4 h-4 text-red-400" />
-                    <span>Demo Credentials Cheat Sheet</span>
-                  </h4>
-
-                  <button
-                    onClick={handleCopyShare}
-                    className="bg-red-600 hover:bg-red-500 text-white font-bold px-3 py-1.5 rounded-lg flex items-center space-x-1.5 transition-all"
-                  >
-                    {copiedShare ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedShare ? 'Copied Credentials Sheet!' : 'Copy Credentials Sheet'}</span>
-                  </button>
-                </div>
-
-                <p className="text-slate-400 leading-relaxed">
-                  Use this cheat sheet to share login access with stakeholders, clinic staff, or test users:
-                </p>
-
-                <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl font-mono text-[11px] text-slate-300 space-y-3 leading-relaxed select-all">
-                  {DEMO_ROLES.map((demo) => (
-                    <div key={demo.role} className="border-b border-slate-800 pb-2.5 last:border-b-0 last:pb-0">
-                      <strong className="text-red-400 block">{demo.name} ({demo.role})</strong>
-                      <span>• Email: {demo.email}</span><br />
-                      <span>• Password: {demo.defaultPass}</span><br />
-                      {demo.pinOrContract && <span>• Ref/PIN: {demo.pinOrContract}<br /></span>}
-                      <span className="text-slate-400 text-[10px]">• Scope: {demo.leastPrivilegeTitle}</span>
-                    </div>
-                  ))}
-                </div>
               </div>
             </div>
           )}

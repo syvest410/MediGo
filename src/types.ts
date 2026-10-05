@@ -118,7 +118,34 @@ export interface User {
   facilityAddress?: string;
   vehicleRegNumber?: string;
   active?: boolean;
+  mustChangePassword?: boolean;
+  tokenVersion?: number;
   createdAt?: string;
+}
+
+export interface LoginAttemptRecord {
+  id: string;
+  key: string; // e.g. "email:user@domain.de" or "ip:192.168.1.1"
+  type: 'EMAIL' | 'IP';
+  identifier: string;
+  attempts: number;
+  firstAttemptAt: string; // ISO string
+  lockedUntil?: string | null; // ISO string
+  lockoutDurationMinutes: number;
+  updatedAt: string; // ISO string
+}
+
+export interface RefreshTokenRecord {
+  id: string;
+  userId: string;
+  tokenHash: string;
+  familyId: string;
+  expiresAt: string; // ISO string
+  revokedAt?: string | null; // ISO string
+  replacedById?: string | null;
+  createdAt: string; // ISO string
+  ip?: string;
+  userAgent?: string;
 }
 
 export interface AuthSession {
@@ -140,6 +167,8 @@ export interface CreateUserPayload {
   vehicleRegNumber?: string;
   pinCode?: string;
   devicePublicKey?: string;
+  mustChangePassword?: boolean;
+  tokenVersion?: number;
 }
 
 export interface PreTripCheck {

@@ -106,6 +106,8 @@ model User {
   pinCodeHash      String?       // bcrypt hash for online PIN verification
   devicePublicKey  String?       // ED25519 public key hex for offline cryptographic verification
   passwordHash     String?
+  mustChangePassword Boolean     @default(false)
+  tokenVersion     Int           @default(0)
   active           Boolean       @default(true)
   
   organizationId   String?
@@ -120,6 +122,7 @@ model User {
   createdOrders    Order[]       @relation("CreatedOrders")
   auditLogs        AuditLog[]
   preTripChecks    PreTripCheck[]
+  refreshTokens    RefreshToken[]
 
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
@@ -296,3 +299,39 @@ model AuditLog {
 
   @@index([orderId])
 }
+
+model LoginAttempt {
+  id                     String    @id @default(uuid())
+  key                    String    @unique // e.g. "email:user@domain.de" or "ip:192.168.1.1"
+  type                   String    // "EMAIL" | "IP"
+  identifier             String
+  attempts               Int       @default(0)
+  firstAttemptAt         DateTime  @default(now())
+  lockedUntil            DateTime?
+  lockoutDurationMinutes Int       @default(0)
+  updatedAt              DateTime  @updatedAt
+
+  @@index([identifier])
+  @@index([lockedUntil])
+}
+
+model RefreshToken {
+  id           String    @id @default(uuid())
+  userId       String
+  tokenHash    String    @unique
+  familyId     String
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?
+  createdAt    DateTime  @default(now())
+  ip           String?
+  userAgent    String?
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tokenHash])
+  @@index([familyId])
+  @@index([userId])
+}
+
+

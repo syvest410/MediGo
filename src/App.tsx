@@ -27,12 +27,14 @@ import { HomePageLanding } from './components/Auth/HomePageLanding';
 import { UnauthorizedShield } from './components/Security/UnauthorizedShield';
 import { SecurityAuditModal } from './components/Security/SecurityAuditModal';
 import { UserManagementModal } from './components/AdminDashboard/UserManagementModal';
+import { ForcePasswordChangeModal } from './components/Auth/ForcePasswordChangeModal';
 import { useAuth } from './context/AuthContext';
 import { useLanguage } from './context/LanguageContext';
 
 import { Order, Role, OrderStatus, TemperatureTelemetry, User } from './types';
 import { INITIAL_ORDERS, INITIAL_USERS } from './lib/db';
 import { offlineQueue } from './lib/offlineQueue';
+import { apiFetch } from './lib/apiFetch';
 import { tempSimulator } from './lib/temperatureSimulator';
 import { emailForwardingStore } from './lib/emailForwardingStore';
 
@@ -40,12 +42,11 @@ export default function App() {
   const { language, t } = useLanguage();
   const isDe = language === 'de';
 
-  const { currentUser: authUser, token, isAuthenticated: authIsLoggedIn, logout, quickLoginAs, ensureValidToken, dbStatus, refreshDbStatus } = useAuth();
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const { currentUser: authUser, token, isAuthenticated, logout, dbStatus, refreshDbStatus } = useAuth();
   const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
   const [activeRole, setActiveRole] = useState<Role>('DRIVER');
-  const [currentUser, setCurrentUser] = useState<User | null>(INITIAL_USERS[1]); // Default to Driver Hans Schmidt
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [viewMode, setViewMode] = useState<'DRIVER_MOBILE' | 'DISPATCH_DASHBOARD' | 'CLIENT_PORTAL' | 'LEGAL_COMPLIANCE' | 'PRISMA_SCHEMA' | 'SECURITY_AUDIT' | 'PATIENT_TRACKING'>('DRIVER_MOBILE');
   const [dashboardTab, setDashboardTab] = useState<'ORDERS' | 'MAP' | 'TARIFF_HOLIDAYS' | 'OPERATIONAL_MODES' | 'VACATION' | 'TELEMETRY' | 'AUDIT' | 'EXPORTS' | 'EMAIL_FORWARDING'>('ORDERS');
   
@@ -64,7 +65,6 @@ export default function App() {
     if (authUser) {
       setCurrentUser(authUser);
       setActiveRole(authUser.role);
-      setIsAuthenticated(true);
       if (authUser.role === 'CLIENT_CLINIC') {
         setViewMode('CLIENT_PORTAL');
       } else if (authUser.role === 'DRIVER') {
@@ -72,6 +72,8 @@ export default function App() {
       } else if (authUser.role === 'ADMIN' || authUser.role === 'DISPATCHER') {
         setViewMode('DISPATCH_DASHBOARD');
       }
+    } else {
+      setCurrentUser(null);
     }
   }, [authUser]);
 
@@ -121,11 +123,7 @@ export default function App() {
   // Fetch initial orders from server API (Scoped under Principle of Least Privilege)
   const fetchOrders = useCallback(async () => {
     try {
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      const res = await fetch('/api/orders', { headers });
+      const res = await apiFetch('/api/orders');
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
@@ -136,7 +134,7 @@ export default function App() {
     } catch (err) {
       console.log('Using local client database:', err);
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     fetchOrders();
@@ -168,13 +166,9 @@ export default function App() {
     }
 
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      const res = await fetch(`/api/orders/${orderId}/transition`, {
+      const res = await apiFetch(`/api/orders/${orderId}/transition`, {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           targetStatus,
           context,
@@ -215,13 +209,9 @@ export default function App() {
   // Handle Order Creation
   const handleCreateOrder = async (newOrderData: any) => {
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      const res = await fetch('/api/orders', {
+      const res = await apiFetch('/api/orders', {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newOrderData)
       });
       if (res.ok) {
@@ -243,13 +233,9 @@ export default function App() {
   // Handle Driver Claiming an Open Order
   const handleClaimOrder = async (orderId: string) => {
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      const res = await fetch(`/api/orders/${orderId}/claim`, {
+      const res = await apiFetch(`/api/orders/${orderId}/claim`, {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
       });
       if (res.ok) {
         const data = await res.json();
@@ -281,16 +267,12 @@ export default function App() {
     tempSimulator.triggerManualTempSpike(order, spikeTemp);
   };
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !currentUser) {
     return (
       <>
         <HomePageLanding
-          onLogin={async (user, initialViewMode) => {
-            await quickLoginAs(user.role, user.email);
-            setCurrentUser(user);
-            setActiveRole(user.role);
+          onLogin={(user, initialViewMode) => {
             if (initialViewMode) setViewMode(initialViewMode);
-            setIsAuthenticated(true);
           }}
           onOpenMobileInstall={() => setIsMobileInstallOpen(true)}
           isNightShift={isNightShift}
@@ -304,6 +286,11 @@ export default function App() {
     );
   }
 
+  // Force Password Change Screen for Seed Accounts
+  if (currentUser?.mustChangePassword) {
+    return <ForcePasswordChangeModal />;
+  }
+
   return (
     <div className={`min-h-screen flex flex-col font-sans transition-colors duration-500 ${
       isNightShift ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'
@@ -314,9 +301,6 @@ export default function App() {
         activeRole={activeRole}
         setActiveRole={(role) => {
           setActiveRole(role);
-          const matchedUser = INITIAL_USERS.find(u => u.role === role) || currentUser;
-          if (matchedUser) setCurrentUser(matchedUser);
-          quickLoginAs(role);
         }}
         currentUser={currentUser}
         viewMode={viewMode}
@@ -330,13 +314,11 @@ export default function App() {
         onOpenMobileInstall={() => setIsMobileInstallOpen(true)}
         onOpenLoginPortal={() => setIsLoginModalOpen(true)}
         onOpenUserManagement={() => {
-          ensureValidToken('ADMIN');
           setIsUserManagementOpen(true);
         }}
         dbStatus={dbStatus}
         onLogout={() => {
           logout();
-          setIsAuthenticated(false);
         }}
         isNightShift={isNightShift}
         onToggleNightShift={handleToggleNightShift}

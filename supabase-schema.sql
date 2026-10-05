@@ -63,6 +63,8 @@ CREATE TABLE IF NOT EXISTS public.users (
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS organization_id TEXT REFERENCES public.organizations(id) ON DELETE SET NULL;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS pin_code_hash TEXT;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS device_public_key TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT FALSE NOT NULL;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS token_version INT DEFAULT 0 NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(email);
 CREATE INDEX IF NOT EXISTS idx_users_role ON public.users(role);
@@ -126,7 +128,43 @@ ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS conflict_resolution TEXT 
 CREATE INDEX IF NOT EXISTS idx_audit_logs_order ON public.audit_logs(order_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_time ON public.audit_logs(timestamp DESC);
 
--- 6. Enable Row Level Security (RLS) for GDPR/UN 3373 Compliance
+-- 6. Login Attempts & Rate Limits Table (Anti-Brute Force Protection)
+CREATE TABLE IF NOT EXISTS public.login_attempts (
+  id TEXT PRIMARY KEY,
+  key TEXT UNIQUE NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('EMAIL', 'IP')),
+  identifier TEXT NOT NULL,
+  attempts INT DEFAULT 0 NOT NULL,
+  first_attempt_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  locked_until TIMESTAMPTZ,
+  lockout_duration_minutes INT DEFAULT 0 NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_login_attempts_key ON public.login_attempts(key);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_identifier ON public.login_attempts(identifier);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_locked_until ON public.login_attempts(locked_until);
+
+-- 7. Refresh Tokens Table (Rotation, SHA-256 Hashing, Family Reuse Detection)
+CREATE TABLE IF NOT EXISTS public.refresh_tokens (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  token_hash TEXT UNIQUE NOT NULL,
+  family_id TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  revoked_at TIMESTAMPTZ,
+  replaced_by_id TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  ip TEXT,
+  user_agent TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON public.refresh_tokens(token_hash);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_family ON public.refresh_tokens(family_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON public.refresh_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires ON public.refresh_tokens(expires_at);
+
+-- 8. Enable Row Level Security (RLS) for GDPR/UN 3373 Compliance
 -- The backend uses the Supabase service_role key which automatically bypasses RLS,
 -- while unauthorized public direct requests via anon keys are strictly blocked.
 ALTER TABLE public.organizations ENABLE ROW LEVEL SECURITY;
@@ -134,10 +172,18 @@ ALTER TABLE public.retention_policies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.login_attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.refresh_tokens ENABLE ROW LEVEL SECURITY;
 
 -- Allow full access to the service_role key (used by MediGo server backend)
 DO $$
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'service_role_full_access_refresh_tokens') THEN
+    CREATE POLICY service_role_full_access_refresh_tokens ON public.refresh_tokens FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'service_role_full_access_login_attempts') THEN
+    CREATE POLICY service_role_full_access_login_attempts ON public.login_attempts FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'service_role_full_access_organizations') THEN
     CREATE POLICY service_role_full_access_organizations ON public.organizations FOR ALL TO service_role USING (true) WITH CHECK (true);
   END IF;
