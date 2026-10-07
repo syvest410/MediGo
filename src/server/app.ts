@@ -42,6 +42,7 @@ import {
   REFRESH_COOKIE_NAME,
   DUMMY_HASH,
   AuthenticatedRequest,
+  validateJwtSecret,
 } from './auth';
 import {
   canAccessOrder,
@@ -133,13 +134,24 @@ app.use(['/api/v1/sync', '/api/sync', '/api/sync-offline', '/api/orders/:id/chai
 // All other endpoints have strict 100kb limit
 app.use(express.json({ limit: '100kb' }));
 
-// Health Check
+// In Vercel serverless mode, verify JWT_SECRET configuration safely
+app.use((req, res, next) => {
+  if (process.env.VERCEL) {
+    try {
+      validateJwtSecret();
+    } catch {
+      return res.status(500).json({
+        message: 'Server configuration error',
+        code: 'SERVER_CONFIG_ERROR',
+      });
+    }
+  }
+  next();
+});
+
+// Health Check (returns { ok: true } only, with no environment or database details)
 app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    service: 'BioDispatch UN 3373 German Medical Logistics Server',
-    timestamp: new Date().toISOString(),
-  });
+  res.status(200).json({ ok: true });
 });
 
 // Database & Backend Status (Anonymous callers receive safe minimal response; ADMIN receives detailed telemetry)
@@ -1559,28 +1571,33 @@ app.post('/api/ceo/email-forwarding/test-send', requireRole('ADMIN'), (req: Auth
   });
 });
 
-// Fallback 404 for any unhandled /api requests (always return JSON, never HTML)
-app.all('/api/*', (req, res) => {
+// Fallback 404 for any unhandled /api requests (always return JSON { message, code }, never HTML)
+app.all(['/api', '/api/*'], (req, res) => {
   res.status(404).json({
     message: `API route not found: ${req.method} ${req.originalUrl || req.url}`,
+    code: 'NOT_FOUND',
   });
 });
 
-// Global API Error Handler (ensures errors are always returned as JSON and internal stack traces/database details never leak in production)
+// Global API Error Handler (ensures errors are always returned as JSON { message, code } and internal stack traces/database details never leak)
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('[API Error]:', err);
+  console.error('[API Error]:', err?.message || err);
   if (res.headersSent) {
     return next(err);
   }
   const statusCode = typeof err.status === 'number' ? err.status : (typeof err.statusCode === 'number' ? err.statusCode : 500);
-  const isProd = process.env.NODE_ENV === 'production';
-  const message = statusCode >= 500 && isProd
-    ? 'An unexpected internal server error occurred'
-    : (err.message || 'An unexpected internal server error occurred');
+  const code = err.code || (statusCode === 404 ? 'NOT_FOUND' : statusCode >= 500 ? 'INTERNAL_SERVER_ERROR' : 'BAD_REQUEST');
+  const isProd = process.env.NODE_ENV === 'production' || Boolean(process.env.VERCEL);
+
+  // Sanitize message: never leak database details, SQL, or internal stack traces
+  let message = err.message || 'An unexpected internal server error occurred';
+  if (statusCode >= 500 && (isProd || /select|insert|update|delete|postgres|supabase|relation|column/i.test(message))) {
+    message = 'An unexpected internal server error occurred';
+  }
 
   res.status(statusCode).json({
     message,
-    ...(isProd ? {} : { error: err.stack }),
+    code,
   });
 });
 

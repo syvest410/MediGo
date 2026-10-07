@@ -1,12 +1,20 @@
 import { app } from './app';
 import { validateJwtSecret } from './auth';
 
-// Ensure JWT_SECRET is verified at startup
-validateJwtSecret();
-
 // Export handler for Vercel Serverless Function
 export default function handler(req: any, res: any) {
-  validateJwtSecret();
+  try {
+    validateJwtSecret();
+  } catch (err: any) {
+    console.error('[Vercel Serverless Config Error]:', err?.message || err);
+    if (res && typeof res.status === 'function') {
+      return res.status(500).json({
+        message: 'Server configuration error',
+        code: 'SERVER_CONFIG_ERROR',
+      });
+    }
+  }
   return app(req, res);
 }
 export { app };
+

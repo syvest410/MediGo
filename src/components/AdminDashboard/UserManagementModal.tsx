@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { User, Role, Organization } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { apiFetch } from '../../lib/apiFetch';
+import { apiFetch, parseJsonSafe } from '../../lib/apiFetch';
 import {
   Users,
   UserPlus,
@@ -86,7 +86,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
     try {
       const res = await apiFetch('/api/organizations');
       if (res.ok) {
-        const data = await res.json();
+        const data = await parseJsonSafe<Organization[]>(res);
         if (Array.isArray(data)) {
           setOrganizations(data);
         }

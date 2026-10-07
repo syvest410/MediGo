@@ -498,27 +498,29 @@ class DatabaseService {
     const supabase = getSupabase();
     if (supabase) {
       try {
-        await supabase.from('users').insert({
+        const sbInsert: any = {
           id: newUser.id,
           email: newUser.email,
           name: newUser.name,
           role: newUser.role,
-          phone: newUser.phone,
-          organization: newUser.organization,
-          organization_id: newUser.organizationId,
-          contract_number: newUser.contractNumber,
-          facility_type: newUser.facilityType,
-          facility_address: newUser.facilityAddress,
-          vehicle_reg_number: newUser.vehicleRegNumber,
-          assigned_vehicle_reg: newUser.vehicleRegNumber,
-          active: newUser.active,
-          is_active: newUser.active,
+          phone: newUser.phone || '',
+          organization: newUser.organization || '',
+          organization_id: newUser.organizationId || null,
+          contract_number: newUser.contractNumber || null,
+          facility_type: newUser.facilityType || null,
+          facility_address: newUser.facilityAddress || '',
+          assigned_vehicle_reg: newUser.vehicleRegNumber || null,
+          is_active: newUser.active !== false,
           password: newUser.passwordHash,
-          password_hash: newUser.passwordHash,
           token_version: newUser.tokenVersion ?? 0,
           created_at: newUser.createdAt,
-        });
-        console.log('[Supabase] Successfully inserted new user:', newUser.email);
+        };
+        const { error: insErr } = await supabase.from('users').insert(sbInsert);
+        if (insErr) {
+          console.warn('[Supabase] Error inserting user to Supabase:', insErr);
+        } else {
+          console.log('[Supabase] Successfully inserted new user:', newUser.email);
+        }
       } catch (err) {
         console.warn('[Supabase] Error inserting user to Supabase:', err);
       }
@@ -630,27 +632,24 @@ class DatabaseService {
       try {
         const sbUpdates: any = {
           name: user.name,
-          phone: user.phone,
-          organization: user.organization,
-          organization_id: user.organizationId,
-          contract_number: user.contractNumber,
-          facility_type: user.facilityType,
-          facility_address: user.facilityAddress,
-          vehicle_reg_number: user.vehicleRegNumber,
-          assigned_vehicle_reg: user.vehicleRegNumber,
+          phone: user.phone || '',
+          organization: user.organization || '',
+          organization_id: user.organizationId || null,
+          contract_number: user.contractNumber || null,
+          facility_type: user.facilityType || null,
+          facility_address: user.facilityAddress || '',
+          assigned_vehicle_reg: user.vehicleRegNumber || null,
           role: user.role,
-          active: user.active,
-          is_active: user.active,
+          is_active: user.active !== false,
           token_version: user.tokenVersion ?? 0,
         };
-        if (updates.mustChangePassword !== undefined) {
-          sbUpdates.must_change_password = updates.mustChangePassword;
-        }
         if (updates.passwordHash || updates.password) {
           sbUpdates.password = user.passwordHash;
-          sbUpdates.password_hash = user.passwordHash;
         }
-        await supabase.from('users').update(sbUpdates).eq('id', id);
+        const { error: sbErr } = await supabase.from('users').update(sbUpdates).eq('id', id);
+        if (sbErr) {
+          console.warn('[Supabase] Error updating user:', sbErr);
+        }
       } catch (err) {
         console.warn('[Supabase] Error updating user:', err);
       }

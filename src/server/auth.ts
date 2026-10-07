@@ -20,7 +20,9 @@ export function validateJwtSecret(): string {
   if (!secret || secret.trim().length < 32) {
     const errorMsg = '[FATAL SECURITY ERROR] JWT_SECRET environment variable is missing or shorter than 32 characters.';
     console.error(errorMsg);
-    if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
+    // In serverless mode (VERCEL set), throw error so handler returns JSON 500
+    // In production standalone mode, refuse to load and exit immediately
+    if (!process.env.VERCEL && (process.env.NODE_ENV === 'production' || (!process.env.VITEST && process.env.NODE_ENV !== 'test'))) {
       process.exit(1);
     }
     throw new Error(errorMsg);
@@ -28,8 +30,17 @@ export function validateJwtSecret(): string {
   return secret;
 }
 
-// Throw and exit immediately at startup/import if JWT_SECRET is invalid
-export const JWT_SECRET = validateJwtSecret();
+// In standard standalone runtime, enforce immediate startup validation.
+// In VERCEL serverless mode, allow error to be handled at request time as JSON 500.
+let initialJwtSecret = '';
+try {
+  initialJwtSecret = validateJwtSecret();
+} catch (err) {
+  if (!process.env.VERCEL && process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
+    throw err;
+  }
+}
+export const JWT_SECRET = initialJwtSecret;
 
 export interface AccessTokenPayload {
   sub: string;

@@ -7,6 +7,36 @@
  * - Graceful session termination on refresh failure
  */
 
+/**
+ * Safely parses the response body as JSON.
+ * - Reads res.text() to prevent SyntaxError on empty or non-JSON payloads.
+ * - Returns null when the body is empty or whitespace-only.
+ * - Parses valid JSON in a try/catch block.
+ * - If parsing fails (e.g. HTML error page or empty response), returns null.
+ */
+export async function parseJsonSafe<T = any>(res: Response): Promise<T | null> {
+  try {
+    const text = await res.text();
+    if (!text || !text.trim()) {
+      return null;
+    }
+    return JSON.parse(text) as T;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Returns a human-readable error message from a response and optional parsed body.
+ * Never throws SyntaxError on HTML, 502 Bad Gateway, or empty bodies.
+ */
+export function getErrorMessage(res: Response, data: any, defaultMsg = 'Please try again.'): string {
+  if (data && typeof data === 'object' && typeof data.message === 'string' && data.message.trim()) {
+    return data.message.trim();
+  }
+  return `Server error (${res.status}). ${defaultMsg}`;
+}
+
 let memoryAccessToken: string | null = null;
 let refreshPromise: Promise<string | null> | null = null;
 
@@ -46,10 +76,10 @@ export async function refreshSession(): Promise<string | null> {
       });
 
       if (response.ok) {
-        const data = await response.json();
-        const newToken = data.accessToken || data.token || null;
+        const data = await parseJsonSafe(response);
+        const newToken = data?.accessToken || data?.token || null;
         setMemoryToken(newToken);
-        if (onTokenUpdatedHandler) {
+        if (onTokenUpdatedHandler && data?.user) {
           onTokenUpdatedHandler(newToken, data.user);
         }
         return newToken;

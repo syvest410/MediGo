@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { User } from '../types';
-import { apiFetch, setMemoryToken, refreshSession, registerAuthHandlers } from '../lib/apiFetch';
+import { apiFetch, setMemoryToken, refreshSession, registerAuthHandlers, parseJsonSafe } from '../lib/apiFetch';
 import { authChannel } from '../lib/authChannel';
 
 export const IDLE_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes configurable idle timeout
@@ -51,8 +51,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const res = await apiFetch('/api/db/status');
       if (res.ok) {
-        const data = await res.json();
-        setDbStatus(data);
+        const data = await parseJsonSafe<DatabaseStatus>(res);
+        if (data) {
+          setDbStatus(data);
+        }
       }
     } catch (err) {
       console.warn('Could not fetch DB status:', err);
@@ -114,8 +116,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
 
         if (res.ok) {
-          const data = await res.json();
-          if (isMounted) {
+          const data = await parseJsonSafe(res);
+          if (isMounted && data) {
             const accessToken = data.accessToken || data.token;
             setToken(accessToken);
             setMemoryToken(accessToken);
@@ -195,11 +197,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body: JSON.stringify({ email: email.trim(), password }),
       });
 
-      const data = await res.json();
+      const data = await parseJsonSafe(res);
 
       if (!res.ok) {
         setIsLoading(false);
-        return { success: false, error: data.message || 'Login failed' };
+        const errorMsg = data?.message || `Server error (${res.status}). Please try again.`;
+        return { success: false, error: errorMsg };
+      }
+
+      if (!data) {
+        setIsLoading(false);
+        return { success: false, error: `Server error (${res.status}). Please try again.` };
       }
 
       const accessToken = data.accessToken || data.token;
@@ -220,8 +228,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const res = await apiFetch('/api/auth/me');
       if (res.ok) {
-        const data = await res.json();
-        setCurrentUser(data.user);
+        const data = await parseJsonSafe(res);
+        if (data?.user) {
+          setCurrentUser(data.user);
+        }
       } else {
         await logout();
       }

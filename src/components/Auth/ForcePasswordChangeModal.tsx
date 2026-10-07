@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { apiFetch } from '../../lib/apiFetch';
+import { apiFetch, parseJsonSafe } from '../../lib/apiFetch';
 import {
   ShieldAlert,
   KeyRound,
@@ -79,11 +79,12 @@ export const ForcePasswordChangeModal: React.FC = () => {
         }),
       });
 
-      const data = await res.json();
+      const data = await parseJsonSafe(res);
 
       if (!res.ok) {
         setIsSubmitting(false);
-        setError(data.message || (data.errors ? data.errors.join(', ') : 'Password change failed.'));
+        const errorMsg = data?.message || (data?.errors ? data.errors.join(', ') : `Server error (${res.status}). Please try again.`);
+        setError(errorMsg);
         return;
       }
 

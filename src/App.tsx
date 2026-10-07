@@ -34,7 +34,7 @@ import { useLanguage } from './context/LanguageContext';
 import { Order, Role, OrderStatus, TemperatureTelemetry, User } from './types';
 import { INITIAL_ORDERS, INITIAL_USERS } from './lib/db';
 import { offlineQueue } from './lib/offlineQueue';
-import { apiFetch } from './lib/apiFetch';
+import { apiFetch, parseJsonSafe } from './lib/apiFetch';
 import { tempSimulator } from './lib/temperatureSimulator';
 import { emailForwardingStore } from './lib/emailForwardingStore';
 
@@ -125,7 +125,7 @@ export default function App() {
     try {
       const res = await apiFetch('/api/orders');
       if (res.ok) {
-        const data = await res.json();
+        const data = await parseJsonSafe<Order[]>(res);
         if (Array.isArray(data) && data.length > 0) {
           setOrders(data);
           setSelectedOrder(prev => (prev ? data.find(o => o.id === prev.id) || data[0] : data[0]));
@@ -181,14 +181,17 @@ export default function App() {
       });
 
       if (res.ok) {
-        const data = await res.json();
-        setOrders(prev => prev.map(o => o.id === orderId ? data.order : o));
-        if (targetStatus === 'DELIVERED' && data.order) {
-          emailForwardingStore.triggerOrderCompletedForwarding(data.order);
+        const data = await parseJsonSafe(res);
+        if (data?.order) {
+          setOrders(prev => prev.map(o => o.id === orderId ? data.order : o));
+          if (targetStatus === 'DELIVERED') {
+            emailForwardingStore.triggerOrderCompletedForwarding(data.order);
+          }
         }
       } else {
-        const errData = await res.json();
-        alert(`Transition rejected under UN 3373 rules:\n${errData.errors?.join('\n') || errData.message}`);
+        const errData = await parseJsonSafe(res);
+        const errMessage = errData?.errors?.join('\n') || errData?.message || `Server error (${res.status}). Please try again.`;
+        alert(`Transition rejected under UN 3373 rules:\n${errMessage}`);
       }
     } catch (e) {
       // Fallback offline queue on network drop
@@ -215,9 +218,11 @@ export default function App() {
         body: JSON.stringify(newOrderData)
       });
       if (res.ok) {
-        const newOrd = await res.json();
-        setOrders(prev => [newOrd, ...prev]);
-        setSelectedOrder(newOrd);
+        const newOrd = await parseJsonSafe(res);
+        if (newOrd) {
+          setOrders(prev => [newOrd, ...prev]);
+          setSelectedOrder(newOrd);
+        }
       }
     } catch (e) {
       console.error('Error creating order:', e);
@@ -238,8 +243,8 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
       });
       if (res.ok) {
-        const data = await res.json();
-        if (data.order) {
+        const data = await parseJsonSafe(res);
+        if (data?.order) {
           setOrders(prev => prev.map(o => o.id === orderId ? data.order : o));
           return;
         }

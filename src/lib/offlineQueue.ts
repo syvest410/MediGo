@@ -1,7 +1,7 @@
 // Offline Queue Manager for Medical Driver Resilience (Basements & Blindspots)
 
 import { PendingOfflineAction } from '../types';
-import { apiFetch, getMemoryToken, refreshSession } from './apiFetch';
+import { apiFetch, getMemoryToken, refreshSession, parseJsonSafe } from './apiFetch';
 
 const QUEUE_STORAGE_KEY = 'biodispatch_offline_queue_v1';
 const SIMULATED_OFFLINE_KEY = 'biodispatch_force_offline';
@@ -159,9 +159,9 @@ export class OfflineQueueManager {
         });
 
         if (response.ok) {
-          const resJson = await response.json();
+          const resJson = await parseJsonSafe(response);
           // Check conflict resolution status
-          const firstResult = Array.isArray(resJson.results) ? resJson.results[0] : resJson;
+          const firstResult = Array.isArray(resJson?.results) ? resJson.results[0] : resJson;
           if (firstResult?.status === 'REJECTED_STALE') {
             errors.push(`[Konflikt Stale]: Aktion ${action.actionType} verworfen – Auftrag wurde am Server bereits fortgeführt (${firstResult.serverCurrentStatus}).`);
             syncedIds.push(action.id); // Remove stale action from local queue
@@ -176,9 +176,9 @@ export class OfflineQueueManager {
           errors.push('Authentifizierungssitzung abgelaufen. Bitte erneut anmelden.');
           break;
         } else {
-          const errData = await response.json().catch(() => ({ message: 'Server sync error' }));
+          const errData = await parseJsonSafe(response);
           action.retryCount++;
-          errors.push(`Action ${action.actionType} for order ${action.orderId}: ${errData.message || 'Sync failed'}`);
+          errors.push(`Action ${action.actionType} for order ${action.orderId}: ${errData?.message || `Server error (${response.status})`}`);
         }
       } catch (err: any) {
         action.retryCount++;

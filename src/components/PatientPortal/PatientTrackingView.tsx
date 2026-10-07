@@ -12,7 +12,7 @@ import {
   Building2
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
-import { apiFetch } from '../../lib/apiFetch';
+import { apiFetch, parseJsonSafe } from '../../lib/apiFetch';
 
 export const PatientTrackingView: React.FC = () => {
   const { language } = useLanguage();
@@ -39,7 +39,10 @@ export const PatientTrackingView: React.FC = () => {
             : 'No shipment found for this tracking number or token.'
         );
       }
-      const data = await res.json();
+      const data = await parseJsonSafe(res);
+      if (!data) {
+        throw new Error(isDe ? 'Ungültige Serverantwort.' : 'Invalid server response.');
+      }
       setTrackingData(data);
     } catch (err: any) {
       setErrorMessage(err.message || (isDe ? 'Verbindungsfehler zur MediGo Sendungsverfolgung.' : 'Connection error to MediGo tracking service.'));
