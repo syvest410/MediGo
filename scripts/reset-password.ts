@@ -19,6 +19,7 @@
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
 import { dbService } from '../src/server/db';
+import { resetFailedLogin } from '../src/server/auth';
 
 dotenv.config();
 
@@ -117,9 +118,16 @@ async function main() {
   const passwordHash = await bcrypt.hash(newPassword, salt);
 
   // Update through DB layer (updates memory, local JSON store, and Supabase)
-  await dbService.updateUser(user.id, { passwordHash });
+  await dbService.updateUser(user.id, {
+    passwordHash,
+    mustChangePassword: false,
+  });
+
+  // Clear any failed login rate limit lockouts
+  await resetFailedLogin(emailArg);
 
   console.log(`[Success] Password successfully reset for user: ${user.name} (${user.email}) [Role: ${user.role}]`);
+  console.log(`[Notice] Rate limit lockout cleared and mustChangePassword set to false for immediate login.`);
   process.exit(0);
 }
 
