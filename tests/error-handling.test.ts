@@ -156,10 +156,9 @@ describe('Error Handling and Safe JSON Parsing Test Suite', () => {
         vercelHandler({} as any, mockRes as any);
 
         expect(statusCode).toBe(500);
-        expect(jsonResponse).toEqual({
-          message: 'Server configuration error',
-          code: 'SERVER_CONFIG_ERROR',
-        });
+        expect(jsonResponse.message).toContain('Server configuration error');
+        expect(jsonResponse.message).toContain('JWT_SECRET');
+        expect(jsonResponse.code).toBe('SERVER_CONFIG_ERROR');
       } finally {
         process.env.JWT_SECRET = origSecret;
       }

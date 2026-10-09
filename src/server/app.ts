@@ -141,7 +141,7 @@ app.use((req, res, next) => {
       validateJwtSecret();
     } catch {
       return res.status(500).json({
-        message: 'Server configuration error',
+        message: 'Server configuration error: JWT_SECRET environment variable is missing or shorter than 32 characters.',
         code: 'SERVER_CONFIG_ERROR',
       });
     }
